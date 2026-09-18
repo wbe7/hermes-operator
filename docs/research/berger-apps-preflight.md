@@ -62,3 +62,25 @@ A temporary restricted Pod compiled and executed a minimal static Go binary as U
 Effective native loaders in the amd64 gateway Pod confirmed the model `qwen38-27b`, provider `custom`, declared endpoint and exact mounted credential, reasoning `xhigh`, Telegram token and user allowlist, disabled groups/multiplexing. Credential values were compared inside the Pod and not printed.
 
 Same-Pod restart passed: a synthetic native SessionStore session with a temporary model override/transcript and a personal config leaf was created; model/reasoning were changed temporarily, then PID1 received SIGTERM. Pod UID stayed `aef8974a-9c88-4b29-baa4-33808a42143a`, restartCount changed `0 -> 1`, last exit code was `1`, and readiness recovered. Native resolver returned the declared model/credential and `xhigh`; the same session ID/transcript remained, active model override was cleared, and 60 file hashes (including SOUL, workspace marker and installed skills) were unchanged. A personal extra config leaf also remained. Test scripts: `/tmp/hermes-operator-deploy/restart-fixture.py`, `verify-restart.py`; these are local integration evidence, not yet the committed final e2e harness.
+
+## Known cluster API destinations
+
+Two bounded TCP connect/close checks used the already known API endpoints of this authorized cluster, with no HTTP request, credentials or range scan. From unrestricted network-client both `10.43.0.1:443` and hosting-node `192.168.0.202:6443` were reachable. From runtime-smoke with its isolation policy both connections were rejected with errno 111. This verifies those specific Service/node routes on current k3s enforcement; it does not generalize to every hosting-node service or another CNI.
+
+## API admission
+
+Committed API schema `27e7ceb`, CRD SHA256 `8d78e92e314c0795fe0d61861d61be9804dd8a7dac37a8fd2111e14a39d2fc22`, was installed by server-side apply and Established on Kubernetes `v1.34.7+k3s1`. All three design examples passed server-side dry-run after substituting only the test namespace. Returned objects confirmed `xhigh`, `Retain`, disabled groups, agent budgets 50/600, terminal timeout 300, requests 100m/512Mi/256Mi and limits 2/2Gi/2Gi. No Hermes CR was actually created by these dry-runs. An earlier development schema failed the optional group-list CEL expression; that failure was fixed and covered by the final envtest and live pass.
+
+The committed resource-positivity fix was also verified on the live API with four separate server-side dry-runs: zero/negative CPU requests and zero/negative CPU limits were all rejected.
+
+## Exact private exception
+
+The controlled network-target exposed TCP 8080 and 8081; unrestricted network-client connected to both. A temporary rule allowed only the target's exact `/32` on TCP 8080 for runtime-smoke: 8080 became reachable while 8081 remained denied. The original policy was restored in a `finally` block, then denial of 8080 was confirmed again. Script: `/tmp/hermes-operator-deploy/check-exact-egress.py`. No other destination was opened by this test.
+
+Public UDP egress was checked with one DNS query for `example.com` to `1.1.1.1:53`; both unrestricted control and isolated runtime-smoke received a valid response. No user content was sent.
+
+For development installation, a conservative configured pod deny aggregate `10.42.0.0/16` contains the observed allocation `10.42.0.0/24`; this is not reported as independently verified server allocation. The baseline already denies all RFC1918 space. Service CIDR `10.43.0.0/16` is API-verified; `192.168.0.0/24` contains the known node and local infrastructure. Changes to cluster/public infrastructure networks remain installer-managed inputs.
+
+## Native inference request
+
+The real official Hermes CLI in the restricted gateway Pod completed a one-shot request using its restored native configuration (no command-line model/provider override), returning `готов` and exit code 0. It used a hidden `tool` source session and ignored user rules for this bounded smoke. No Telegram message was sent. This verifies the native Hermes request pipeline to the supplied inference with the configured `xhigh` default, beyond the direct HTTP API check.
