@@ -176,6 +176,7 @@ func TestEnvtestDependencyLifecycle(t *testing.T) {
 		t.Fatalf("expected real resourceVersion conflict: %v", err)
 	}
 	runReconcile(t, r, h)
+	realSecurityAndMetadataRepair(t, r, h)
 	realFinalization(t, r, h)
 }
 
@@ -386,6 +387,26 @@ func TestEnvtestManagerRestart(t *testing.T) {
 	if h.Status.StorageRef.UID != uid {
 		t.Fatal("restart replaced PVC")
 	}
+	// Desired refs move away from the running snapshot while the spec is invalid.
+	// The old source event must still enqueue this CR through revision metadata.
+	next := source(h)
+	next.Name = "next-source"
+	next.UID = ""
+	if err := k.Create(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	h.Spec.Credentials.SecretName = next.Name
+	h.Spec.Version = "unsupported"
+	if err := k.Update(ctx, h); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(func() bool {
+		if err := k.Get(ctx, client.ObjectKeyFromObject(h), h); err != nil {
+			return false
+		}
+		c := meta.FindStatusCondition(h.Status.Conditions, "ConfigurationReady")
+		return c != nil && c.ObservedGeneration == h.Generation && c.Reason == "UnsupportedVersion"
+	})
 	if err := k.Delete(ctx, sec); err != nil {
 		t.Fatal(err)
 	}
@@ -481,5 +502,138 @@ func TestNetworkOnlyUpdateDoesNotRollWorkload(t *testing.T) {
 	}
 	if h.Status.AppliedRevision != revision {
 		t.Fatal("network-only change rolled workload")
+	}
+}
+
+func TestSecurityContextDriftIsRepaired(t *testing.T) {
+	cases := map[string]func(*corev1.PodSpec){
+		"root-container":   func(p *corev1.PodSpec) { p.Containers[0].SecurityContext.RunAsUser = ptr.To(int64(0)) },
+		"nonroot-disabled": func(p *corev1.PodSpec) { p.Containers[0].SecurityContext.RunAsNonRoot = ptr.To(false) },
+		"unconfined-container": func(p *corev1.PodSpec) {
+			p.Containers[0].SecurityContext.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined}
+		},
+		"added-capability": func(p *corev1.PodSpec) {
+			p.Containers[0].SecurityContext.Capabilities.Add = []corev1.Capability{"SYS_ADMIN"}
+		},
+		"privileged-container": func(p *corev1.PodSpec) { p.Containers[0].SecurityContext.Privileged = ptr.To(true) },
+		"unmasked-proc":        func(p *corev1.PodSpec) { p.Containers[0].SecurityContext.ProcMount = ptr.To(corev1.UnmaskedProcMount) },
+		"pod-sysctl": func(p *corev1.PodSpec) {
+			p.SecurityContext.Sysctls = []corev1.Sysctl{{Name: "net.ipv4.ip_forward", Value: "1"}}
+		},
+		"pod-added-groups": func(p *corev1.PodSpec) { p.SecurityContext.SupplementalGroups = []int64{0} },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			r, h := unit(t, true)
+			runReconcile(t, r, h)
+			set := sts(t, r, h)
+			desired := set.Spec.Template.Spec.DeepCopy()
+			mutate(&set.Spec.Template.Spec)
+			if err := r.Update(ctx, set); err != nil {
+				t.Fatal(err)
+			}
+			runReconcile(t, r, h)
+			got := sts(t, r, h).Spec.Template.Spec
+			if !equality.Semantic.DeepEqual(desired.SecurityContext, got.SecurityContext) || !equality.Semantic.DeepEqual(desired.Containers[0].SecurityContext, got.Containers[0].SecurityContext) {
+				t.Fatal("unsafe securityContext drift survived reconciliation")
+			}
+		})
+	}
+}
+
+func TestLegitimateSecurityDefaultsAreIdempotent(t *testing.T) {
+	r, h := unit(t, true)
+	runReconcile(t, r, h)
+	set := sts(t, r, h)
+	set.Spec.Template.Spec.Containers[0].SecurityContext.Privileged = ptr.To(false)
+	set.Spec.Template.Spec.Containers[0].SecurityContext.ProcMount = ptr.To(corev1.DefaultProcMount)
+	set.Spec.Template.Spec.SecurityContext.SupplementalGroupsPolicy = ptr.To(corev1.SupplementalGroupsPolicyMerge)
+	if err := r.Update(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	rv := set.ResourceVersion
+	runReconcile(t, r, h)
+	if sts(t, r, h).ResourceVersion != rv {
+		t.Fatal("legitimate default values caused repeated template patch")
+	}
+}
+
+func TestBackfillDependencyMetadataDoesNotRollWorkload(t *testing.T) {
+	r, h := unit(t, true)
+	runReconcile(t, r, h)
+	set := sts(t, r, h)
+	rv, revision := set.ResourceVersion, h.Status.AppliedRevision
+	sec := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: h.Namespace, Name: set.Spec.Template.Spec.Volumes[3].Secret.SecretName}
+	if err := r.APIReader.Get(ctx, key, sec); err != nil {
+		t.Fatal(err)
+	}
+	data := sec.DeepCopy().Data
+	sec.Annotations = nil
+	if err := r.Update(ctx, sec); err != nil {
+		t.Fatal(err)
+	}
+	runReconcile(t, r, h)
+	if sts(t, r, h).ResourceVersion != rv || h.Status.AppliedRevision != revision {
+		t.Fatal("backfilling provenance rolled workload")
+	}
+	if err := r.APIReader.Get(ctx, key, sec); err != nil {
+		t.Fatal(err)
+	}
+	if sec.Annotations[sourceRefsAnnotation] == "" || !equality.Semantic.DeepEqual(data, sec.Data) {
+		t.Fatal("backfill missing or altered credential snapshot")
+	}
+	if strings.Contains(sec.Annotations[sourceRefsAnnotation], "fake-token") || strings.Contains(sec.Annotations[sourceRefsAnnotation], "fake-key") {
+		t.Fatal("secret values entered metadata")
+	}
+}
+
+func realSecurityAndMetadataRepair(t *testing.T, r *HermesReconciler, h *v1.Hermes) {
+	t.Helper()
+	set := sts(t, r, h)
+	set.Spec.Template.Spec.Containers[0].SecurityContext.RunAsUser = ptr.To(int64(0))
+	set.Spec.Template.Spec.Containers[0].SecurityContext.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined}
+	set.Spec.Template.Spec.Containers[0].SecurityContext.Capabilities.Add = []corev1.Capability{"SYS_ADMIN"}
+	if err := r.Update(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	runReconcile(t, r, h)
+	set = sts(t, r, h)
+	sc := set.Spec.Template.Spec.Containers[0].SecurityContext
+	if sc.RunAsUser != nil || sc.SeccompProfile != nil || len(sc.Capabilities.Add) != 0 {
+		t.Fatal("API-admitted security drift was not repaired")
+	}
+	rv := set.ResourceVersion
+	snapshot := &corev1.Secret{}
+	key := types.NamespacedName{Namespace: h.Namespace, Name: set.Spec.Template.Spec.Volumes[3].Secret.SecretName}
+	if err := r.APIReader.Get(ctx, key, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Annotations = nil
+	if err := r.Update(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	runReconcile(t, r, h)
+	if sts(t, r, h).ResourceVersion != rv {
+		t.Fatal("security defaults or metadata backfill rewrote StatefulSet")
+	}
+	if err := r.APIReader.Get(ctx, key, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Annotations[sourceRefsAnnotation] == "" {
+		t.Fatal("existing snapshot source refs were not reconstructed")
+	}
+}
+
+func TestAppliedDependencyIndexSurvivesDesiredRefChange(t *testing.T) {
+	h := testfixtures.Hermes(t)
+	h.Spec.Credentials.SecretName = "next"
+	revision := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: h.Name + "-sec-previous", Namespace: h.Namespace, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(h, v1.GroupVersion.WithKind("Hermes"))}, Annotations: map[string]string{sourceRefsAnnotation: `[{"name":"old","key":"MODEL_API_KEY","uid":"old-uid"}]`}}}
+	s := scheme(t)
+	k := fake.NewClientBuilder().WithScheme(s).WithObjects(h, revision).WithIndex(&v1.Hermes{}, secretIndex, secretNames).WithIndex(&corev1.Secret{}, revisionSourceIndex, revisionSourceNames).Build()
+	r := &HermesReconciler{Client: k, APIReader: k}
+	requests := r.mapDependency(secretIndex)(ctx, &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: h.Namespace}})
+	if len(requests) != 1 || requests[0].NamespacedName != client.ObjectKeyFromObject(h) {
+		t.Fatalf("applied source did not enqueue its installation: %v", requests)
 	}
 }

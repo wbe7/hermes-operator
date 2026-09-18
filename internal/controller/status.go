@@ -70,7 +70,7 @@ func (r *HermesReconciler) observePods(ctx context.Context, h *v1.Hermes, set *a
 		if !p.DeletionTimestamp.IsZero() {
 			continue
 		}
-		if p.Annotations[workload.RevisionAnnotation] != revision {
+		if p.Annotations[workload.RevisionAnnotation] != revision || !podSecurityMatches(set.Spec.Template.Spec, p.Spec) {
 			if err = r.deleteUID(ctx, p); err != nil {
 				return err
 			}

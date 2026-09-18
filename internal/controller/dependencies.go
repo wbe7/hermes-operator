@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
@@ -29,20 +30,23 @@ func (r *HermesReconciler) secrets(ctx context.Context, h *v1.Hermes) (map[types
 	out := map[types.NamespacedName]*corev1.Secret{}
 	for _, ref := range config.SecretRefs(h) {
 		key := types.NamespacedName{Namespace: h.Namespace, Name: ref.Name}
-		if _, ok := out[key]; ok {
-			continue
-		}
-		s := &corev1.Secret{}
-		if err := r.reader().Get(ctx, key, s); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil, problem("DependencyNotFound", "a referenced Secret is missing")
+		s, ok := out[key]
+		if !ok {
+			s = &corev1.Secret{}
+			if err := r.reader().Get(ctx, key, s); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil, problem("DependencyNotFound", "a referenced Secret is missing")
+				}
+				return nil, apiFailure("read credential dependency", err)
 			}
-			return nil, apiFailure("read credential dependency", err)
+			if !s.DeletionTimestamp.IsZero() {
+				return nil, problem("DependencyNotFound", "a referenced Secret is terminating")
+			}
+			out[key] = s
 		}
-		if !s.DeletionTimestamp.IsZero() {
-			return nil, problem("DependencyNotFound", "a referenced Secret is terminating")
+		if len(s.Data[ref.Key]) == 0 {
+			return nil, problem("DependencyKeyMissing", "a required Secret key is missing or empty")
 		}
-		out[key] = s
 	}
 	return out, nil
 }
@@ -77,6 +81,24 @@ func (r *HermesReconciler) mapDependency(index string) handler.MapFunc {
 				out = append(out, reconcile.Request{NamespacedName: key})
 			}
 		}
+		if index == secretIndex {
+			revisions := &metav1.PartialObjectMetadataList{}
+			revisions.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "SecretList"})
+			if err := r.List(ctx, revisions, client.InNamespace(obj.GetNamespace()), client.MatchingFields{revisionSourceIndex: obj.GetName()}); err == nil {
+				for i := range revisions.Items {
+					revision := &revisions.Items[i]
+					owner := metav1.GetControllerOf(revision)
+					if owner == nil || owner.Kind != "Hermes" || owner.APIVersion != v1.GroupVersion.String() {
+						continue
+					}
+					key := types.NamespacedName{Namespace: revision.Namespace, Name: owner.Name}
+					if !seen[key] {
+						seen[key] = true
+						out = append(out, reconcile.Request{NamespacedName: key})
+					}
+				}
+			}
+		}
 		return out
 	}
 }
@@ -95,6 +117,9 @@ func (r *HermesReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	secret := &metav1.PartialObjectMetadata{}
 	secret.SetGroupVersionKind(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"})
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), secret, revisionSourceIndex, revisionSourceNames); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).For(&v1.Hermes{}).Owns(&appsv1.StatefulSet{}).Owns(&corev1.Service{}).Owns(&corev1.ServiceAccount{}).Owns(&corev1.ConfigMap{}).Owns(&networkingv1.NetworkPolicy{}).
 		Watches(secret, handler.EnqueueRequestsFromMapFunc(r.mapDependency(secretIndex)), builder.OnlyMetadata).
 		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(r.mapDependency(claimIndex))).
@@ -115,4 +140,130 @@ func (r *HermesReconciler) mapPod(ctx context.Context, obj client.Object) []reco
 		return nil
 	}
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: obj.GetNamespace(), Name: owner.Name}}}
+}
+
+const sourceRefsAnnotation = "hermes.wbe7.github.io/source-refs"
+const revisionSourceIndex = "hermes.revisionSourceName"
+
+type sourceRef struct {
+	Name string    `json:"name"`
+	Key  string    `json:"key"`
+	UID  types.UID `json:"uid"`
+}
+
+func encodeSourceRefs(h *v1.Hermes, secrets map[types.NamespacedName]*corev1.Secret) string {
+	refs := []sourceRef{}
+	for _, ref := range config.SecretRefs(h) {
+		s := secrets[types.NamespacedName{Namespace: h.Namespace, Name: ref.Name}]
+		refs = append(refs, sourceRef{Name: ref.Name, Key: ref.Key, UID: s.UID})
+	}
+	raw, _ := json.Marshal(refs)
+	return string(raw)
+}
+func decodeSourceRefs(obj client.Object) ([]sourceRef, error) {
+	var refs []sourceRef
+	if err := json.Unmarshal([]byte(obj.GetAnnotations()[sourceRefsAnnotation]), &refs); err != nil || len(refs) == 0 {
+		return nil, problem("DependencyIdentityUnknown", "applied credential dependency identity is unavailable")
+	}
+	for _, ref := range refs {
+		if ref.Name == "" || ref.Key == "" || ref.UID == "" {
+			return nil, problem("DependencyIdentityUnknown", "applied credential dependency identity is incomplete")
+		}
+	}
+	return refs, nil
+}
+func revisionSourceNames(obj client.Object) []string {
+	refs, err := decodeSourceRefs(obj)
+	if err != nil {
+		return nil
+	}
+	names := []string{}
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		if !seen[ref.Name] {
+			seen[ref.Name] = true
+			names = append(names, ref.Name)
+		}
+	}
+	return names
+}
+
+// Invalid desired configuration may preserve a workload only while all of its
+// applied dependencies still exist. The Pod may be on an older revision than
+// the StatefulSet, so inspect both; source values never enter this metadata.
+func (r *HermesReconciler) configurationFailed(ctx context.Context, h *v1.Hermes, configurationErr error) (ctrl.Result, error) {
+	if err := r.checkAppliedDependencies(ctx, h); err != nil {
+		return r.stopAndFail(ctx, h, "DependenciesReady", err)
+	}
+	return r.failed(ctx, h, "ConfigurationReady", configurationErr)
+}
+func (r *HermesReconciler) checkAppliedDependencies(ctx context.Context, h *v1.Hermes) error {
+	set := &appsv1.StatefulSet{}
+	err := r.reader().Get(ctx, types.NamespacedName{Namespace: h.Namespace, Name: h.Name + "-hermes"}, set)
+	if apierrors.IsNotFound(err) {
+		if h.Status.WorkloadRef == nil {
+			return nil
+		}
+		set.Name = h.Status.WorkloadRef.Name
+		set.Namespace = h.Namespace
+		set.UID = types.UID(h.Status.WorkloadRef.UID)
+	} else if err != nil {
+		return apiFailure("read applied workload dependencies", err)
+	} else if err = checkOwned(set, h); err != nil {
+		return err
+	}
+	pods, err := r.workloadPods(ctx, h, set)
+	if err != nil {
+		return err
+	}
+	names := map[string]bool{}
+	add := func(spec corev1.PodSpec) {
+		for _, v := range spec.Volumes {
+			if v.Secret != nil {
+				names[v.Secret.SecretName] = true
+			}
+		}
+	}
+	add(set.Spec.Template.Spec)
+	for _, pod := range pods {
+		add(pod.Spec)
+	}
+	sources := map[string]*corev1.Secret{}
+	for name := range names {
+		revision := &metav1.PartialObjectMetadata{}
+		revision.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "Secret"})
+		if err = r.reader().Get(ctx, types.NamespacedName{Namespace: h.Namespace, Name: name}, revision); err != nil {
+			if apierrors.IsNotFound(err) {
+				return problem("DependencyNotFound", "an applied credential snapshot is missing")
+			}
+			return apiFailure("read applied credential metadata", err)
+		}
+		if err = checkOwned(revision, h); err != nil {
+			return err
+		}
+		refs, err := decodeSourceRefs(revision)
+		if err != nil {
+			return err
+		}
+		for _, ref := range refs {
+			source, ok := sources[ref.Name]
+			if !ok {
+				source = &corev1.Secret{}
+				if err = r.reader().Get(ctx, types.NamespacedName{Namespace: h.Namespace, Name: ref.Name}, source); err != nil {
+					if apierrors.IsNotFound(err) {
+						return problem("DependencyNotFound", "an applied credential source is missing")
+					}
+					return apiFailure("read applied credential source", err)
+				}
+				sources[ref.Name] = source
+			}
+			if !source.DeletionTimestamp.IsZero() || source.UID != ref.UID {
+				return problem("DependencyNotFound", "an applied credential source was replaced or is terminating")
+			}
+			if len(source.Data[ref.Key]) == 0 {
+				return problem("DependencyKeyMissing", "an applied credential key is missing or empty")
+			}
+		}
+	}
+	return nil
 }

@@ -112,35 +112,38 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.saveStatus(ctx, h)
 	}
 	setCondition(h, "Suspended", metav1.ConditionFalse, "Reconciled", "installation is active")
-	release, err := runtimecatalog.Resolve(h.Spec.Version)
-	if err != nil {
-		return r.failed(ctx, h, "ConfigurationReady", problem("UnsupportedVersion", "Hermes version is not supported"))
-	}
-	if err = config.Validate(h, release); err != nil {
-		return r.failed(ctx, h, "ConfigurationReady", problem("InvalidConfiguration", "configuration is invalid"))
-	}
-	policy, err := network.Build(h, r.Network)
-	if err != nil {
-		return r.failed(ctx, h, "ConfigurationReady", problem("InvalidConfiguration", "network configuration is invalid"))
-	}
-	setCondition(h, "ConfigurationReady", metav1.ConditionTrue, "Reconciled", "configuration is valid")
 	secrets, err := r.secrets(ctx, h)
 	if err != nil {
 		return r.stopAndFail(ctx, h, "DependenciesReady", err)
 	}
+	release, err := runtimecatalog.Resolve(h.Spec.Version)
+	if err != nil {
+		return r.configurationFailed(ctx, h, problem("UnsupportedVersion", "Hermes version is not supported"))
+	}
+	if err = config.Validate(h, release); err != nil {
+		return r.configurationFailed(ctx, h, problem("InvalidConfiguration", "configuration is invalid"))
+	}
+	policy, err := network.Build(h, r.Network)
+	if err != nil {
+		return r.configurationFailed(ctx, h, problem("InvalidConfiguration", "network configuration is invalid"))
+	}
+	setCondition(h, "ConfigurationReady", metav1.ConditionTrue, "Reconciled", "configuration is valid")
 	bundle, err := config.Render(h, release, secrets)
 	if err != nil {
 		var missing *config.DependencyError
 		if errors.As(err, &missing) {
 			return r.stopAndFail(ctx, h, "DependenciesReady", problem("DependencyKeyMissing", "a required Secret key is missing or empty"))
 		}
-		return r.failed(ctx, h, "ConfigurationReady", problem("InvalidConfiguration", "configuration cannot be rendered"))
+		return r.configurationFailed(ctx, h, problem("InvalidConfiguration", "configuration cannot be rendered"))
 	}
 	setCondition(h, "DependenciesReady", metav1.ConditionTrue, "Reconciled", "referenced credentials are available")
 	resources, err := workload.Build(h, release, bundle, claimName(h))
 	if err != nil {
-		return r.failed(ctx, h, "ConfigurationReady", problem("InvalidConfiguration", "workload configuration is invalid"))
+		return r.configurationFailed(ctx, h, problem("InvalidConfiguration", "workload configuration is invalid"))
 	}
+	// Source identities are nonsecret metadata attached to the immutable
+	// snapshot. They remain available when a later desired spec changes refs.
+	resources.Secret.Annotations = map[string]string{sourceRefsAnnotation: encodeSourceRefs(h, secrets)}
 	// Validate storage and all generated object identities before any partial apply.
 	if err = r.validateStorage(ctx, h); err != nil {
 		return r.stopAndFail(ctx, h, "StorageReady", err)
@@ -230,8 +233,16 @@ func (r *HermesReconciler) apply(ctx context.Context, h *v1.Hermes, desired clie
 	}
 	base := current.DeepCopyObject().(client.Object)
 	switch want := desired.(type) {
-	case *corev1.Secret, *corev1.ConfigMap:
+	case *corev1.ConfigMap:
 		return r.preflight(ctx, h, desired)
+	case *corev1.Secret:
+		if err = r.preflight(ctx, h, desired); err != nil {
+			return err
+		}
+		if current.GetAnnotations() == nil {
+			current.SetAnnotations(map[string]string{})
+		}
+		current.GetAnnotations()[sourceRefsAnnotation] = want.Annotations[sourceRefsAnnotation]
 	case *appsv1.StatefulSet:
 		have := current.(*appsv1.StatefulSet)
 		have.Spec.Replicas = ptr.To(*want.Spec.Replicas)
@@ -264,6 +275,9 @@ func (r *HermesReconciler) apply(ctx context.Context, h *v1.Hermes, desired clie
 // and maps. Check operator-controlled optional fields and lengths explicitly.
 func templateMatches(want, have corev1.PodTemplateSpec) bool {
 	w, a := want.Spec, have.Spec
+	if !podSecurityMatches(w, a) {
+		return false
+	}
 	if len(w.Containers) != len(a.Containers) || len(w.InitContainers) != len(a.InitContainers) || len(w.Volumes) != len(a.Volumes) || len(w.ImagePullSecrets) != len(a.ImagePullSecrets) || !equality.Semantic.DeepEqual(w.NodeSelector, a.NodeSelector) || !equality.Semantic.DeepEqual(w.Affinity, a.Affinity) || !equality.Semantic.DeepEqual(w.Tolerations, a.Tolerations) || w.NodeName != a.NodeName || len(w.HostAliases) != len(a.HostAliases) {
 		return false
 	}
@@ -274,4 +288,51 @@ func templateMatches(want, have corev1.PodTemplateSpec) bool {
 		}
 	}
 	return equality.Semantic.DeepDerivative(want, have)
+}
+
+// These defaults are semantically defined by the Kubernetes API; all other
+// security fields, including absent fields that override Pod inheritance, are
+// compared exactly. Never use DeepDerivative for a securityContext.
+func normalizeContainerSecurity(in *corev1.SecurityContext) *corev1.SecurityContext {
+	out := in.DeepCopy()
+	if out == nil {
+		out = &corev1.SecurityContext{}
+	}
+	if out.Privileged == nil {
+		out.Privileged = ptr.To(false)
+	}
+	if out.ProcMount == nil {
+		out.ProcMount = ptr.To(corev1.DefaultProcMount)
+	}
+	return out
+}
+func normalizePodSecurity(in *corev1.PodSecurityContext) *corev1.PodSecurityContext {
+	out := in.DeepCopy()
+	if out == nil {
+		out = &corev1.PodSecurityContext{}
+	}
+	if out.SupplementalGroupsPolicy == nil {
+		out.SupplementalGroupsPolicy = ptr.To(corev1.SupplementalGroupsPolicyMerge)
+	}
+	return out
+}
+
+// Live Pods have node assignment and other non-template fields. Compare only
+// the controlled security contexts here, also for a Pod carrying the expected
+// revision annotation: annotations alone cannot prove effective isolation.
+func podSecurityMatches(want, have corev1.PodSpec) bool {
+	if !equality.Semantic.DeepEqual(normalizePodSecurity(want.SecurityContext), normalizePodSecurity(have.SecurityContext)) {
+		return false
+	}
+	for _, pair := range [][2][]corev1.Container{{want.Containers, have.Containers}, {want.InitContainers, have.InitContainers}} {
+		if len(pair[0]) != len(pair[1]) {
+			return false
+		}
+		for i, c := range pair[0] {
+			if c.Name != pair[1][i].Name || !equality.Semantic.DeepEqual(normalizeContainerSecurity(c.SecurityContext), normalizeContainerSecurity(pair[1][i].SecurityContext)) {
+				return false
+			}
+		}
+	}
+	return true
 }
