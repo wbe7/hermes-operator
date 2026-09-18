@@ -94,6 +94,9 @@ func TestRejectCredentialObjectsAndInternalMarkers(t *testing.T) {
 		{"credential field list", `{"auxiliary":{"vision":{"api_key":["SENTINEL"]}}}`, "spec.extraConfig.auxiliary.vision.api_key"},
 		{"marker in safe subtree", `{"safe":{"credential":"${VISION_API_KEY}"}}`, "spec.extraConfig.safe"},
 		{"marker in list", `{"safe":[{"credential":"${VISION_API_KEY}"}]}`, "spec.extraConfig.safe.[]"},
+		{"marker with empty sibling", `{"safe":{"credential":"${VISION_API_KEY}","empty":{}}}`, "spec.extraConfig.safe"},
+		{"marker with recursively empty sibling", `{"safe":{"credential":"${VISION_API_KEY}","empty":{"nested":{"deep":{}}}}}`, "spec.extraConfig.safe"},
+		{"list marker with recursively empty sibling", `{"safe":[{"credential":"${VISION_API_KEY}","empty":{"nested":{}}}]}`, "spec.extraConfig.safe.[]"},
 		{"root marker", `{"credential":"${VISION_API_KEY}"}`, "spec.extraConfig"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

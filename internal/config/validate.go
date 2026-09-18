@@ -113,7 +113,10 @@ func walkExtra(h *v1.Hermes, value any, path []string) error {
 		}
 	}
 	if object, ok := value.(map[string]any); ok {
-		if _, marker := object["credential"]; marker && len(object) == 1 {
+		// copyExtra prunes empty-object siblings recursively, so a multi-key
+		// object can become a singleton marker. Reserve the discriminator
+		// everywhere rather than checking only the unnormalized shape.
+		if _, marker := object["credential"]; marker {
 			return invalid(fieldPath, "internal credential markers are forbidden")
 		}
 		for k, v := range object {
