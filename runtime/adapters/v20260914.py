@@ -123,7 +123,49 @@ def reset_provider_credentials(home, config):
 def reset_channel_overrides(config):
     """Per-channel model/provider routing is managed; personal prompts are retained."""
     for section in (config, config.get('gateway', {})):
-        for platform in section.get('platforms', {}).values():
+        platforms = list(section.get('platforms', {}).values())
+        if isinstance(section.get('telegram'), dict):
+            platforms.append(section['telegram'])
+        for platform in platforms:
             for channel in platform.get('channel_overrides', {}).values():
                 channel.pop('model', None)
                 channel.pop('provider', None)
+
+
+def normalize_reasoning_map(current, desired):
+    """The sole map-valued base field has exact replacement semantics.
+
+    Clear only this versioned administrative map before generic ownership checks;
+    never extend this exception to arbitrary requested extra paths or ancestors.
+    """
+    import copy
+    desired_agent = desired.get('agent', {})
+    if isinstance(desired_agent, dict) and isinstance(desired_agent.get('reasoning_overrides'), dict):
+        current = copy.deepcopy(current)
+        agent = current.get('agent')
+        if isinstance(agent, dict):
+            agent.pop('reasoning_overrides', None)
+    return current
+
+
+def reset_telegram_pairing(home, desired):
+    """CR allowlist supersedes persisted Telegram grants, including split layouts.
+
+    Native PairingStore imports alternate-layout grants on construction and its
+    public revoke mutates ambient dotenv. Filter the pinned JSON schema in both
+    locations instead; preserve other platforms, rate limits and allowed users.
+    Fail closed on malformed data rather than invoking upstream's forgiving read.
+    """
+    from bootstrap import atomic_write
+    allowed = desired.get('gateway', {}).get('platforms', {}).get('telegram', {}).get('extra', {}).get('allow_from')
+    if not isinstance(allowed, list) or not allowed:
+        return
+    for directory in (home / 'pairing', home / 'platforms' / 'pairing'):
+        for suffix in ('approved', 'pending'):
+            path = directory / ('telegram-' + suffix + '.json')
+            if path.exists():
+                record = json.loads(path.read_text())
+                if not isinstance(record, dict):
+                    raise ValueError('invalid Telegram pairing state')
+                retained = {key: value for key, value in record.items() if key in allowed} if suffix == 'approved' else {}
+                atomic_write(path, json.dumps(retained))

@@ -95,3 +95,26 @@ class RestoreTests(unittest.TestCase):
             finally:
                 os.close(lock)
             restore(home,self.bundle({'model':{'default':'declared'}}),{'model-api-key':'synthetic'})
+
+    def test_first_adoption_replaces_only_administrative_reasoning_map(self):
+        for desired in ({}, {'declared-model': 'xhigh'}):
+            with self.subTest(desired=desired), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory)
+                (home/'config.yaml').write_text(yaml.safe_dump({'agent':{'reasoning_overrides':{'locally-selected-model':'low'},'system_prompt':'keep'},'display':{'personality':'personal'}}))
+                restore(home,self.bundle({'agent':{'reasoning_overrides':desired}}),{'model-api-key':'synthetic'})
+                config=yaml.safe_load((home/'config.yaml').read_text())
+                self.assertEqual(config['agent']['reasoning_overrides'],desired)
+                self.assertEqual(config['agent']['system_prompt'],'keep')
+                self.assertEqual(config['display']['personality'],'personal')
+
+    def test_telegram_pairing_grants_reset_in_both_layouts(self):
+        for layout in ('pairing','platforms/pairing'):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory); pairing=home/layout; pairing.mkdir(parents=True)
+                (pairing/'telegram-approved.json').write_text(json.dumps({'999':{'user_name':'not allowed'},'123':{'user_name':'allowed'}}))
+                (pairing/'telegram-pending.json').write_text(json.dumps({'pending':{'user_id':'999'}}))
+                (pairing/'discord-approved.json').write_text('{"other": {}}')
+                restore(home,self.bundle({'gateway':{'platforms':{'telegram':{'extra':{'allow_from':['123']}}}}}),{'model-api-key':'synthetic'})
+                self.assertEqual(json.loads((pairing/'telegram-approved.json').read_text()),{'123':{'user_name':'allowed'}})
+                self.assertEqual(json.loads((pairing/'telegram-pending.json').read_text()),{})
+                self.assertEqual((pairing/'discord-approved.json').read_text(),'{"other": {}}')

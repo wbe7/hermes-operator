@@ -106,7 +106,7 @@ def _config_credentials(value, credentials, env, names):
 
 def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
     import yaml
-    from adapters.v20260914 import reset_model_overrides, reset_provider_credentials, reset_channel_overrides
+    from adapters.v20260914 import reset_model_overrides, reset_provider_credentials, reset_channel_overrides, normalize_reasoning_map, reset_telegram_pairing
     try:
         if bundle['schema'] != 1 or bundle['release'] != 'v2026.9.14':
             raise ValueError()
@@ -124,7 +124,8 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         previous_env = set(env) | {key for manifest in manifests for key in manifest['ownedEnv']}
         config_path = home / 'config.yaml'
         current = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
-        merged = merge_config(current or {}, desired, previous)
+        current = normalize_reasoning_map(current or {}, desired)
+        merged = merge_config(current, desired, previous)
         from dotenv import dotenv_values
         env_path = home / '.env'
         current_env = dict(dotenv_values(env_path, interpolate=False)) if env_path.exists() else {}
@@ -138,6 +139,7 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         pending = {'ownedPaths': [list(path) for path in sorted(previous | owned)], 'ownedEnv': sorted(previous_env)}
         atomic_write(home / '.operator/pending.json', json.dumps(pending))
         reset_model_overrides(home)
+        reset_telegram_pairing(home, desired)
         reset_provider_credentials(home, merged)
         reset_channel_overrides(merged)
         legacy_path = home / 'gateway.json'
