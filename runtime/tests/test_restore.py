@@ -25,7 +25,7 @@ class RestoreTests(unittest.TestCase):
             restore(home,bundle,{'model-api-key': "synthetic'key"})
             restore(home,bundle,{'model-api-key': "synthetic'key"})
             config=yaml.safe_load((home/'config.yaml').read_text())
-            self.assertEqual(config['model']['api_key'], "synthetic'key")
+            self.assertEqual(config['model']['api_key'], '${HERMES_MODEL_API_KEY}')
             self.assertEqual(config['agent']['system_prompt'],'personal')
             self.assertNotIn('retired',config)
             self.assertEqual((home/'SOUL.md').read_text(),'personal')
@@ -50,3 +50,48 @@ class RestoreTests(unittest.TestCase):
             restore(home,self.bundle({'model':{'default':'declared'}}),{'model-api-key':'synthetic'})
             cfg=yaml.safe_load((home/'config.yaml').read_text())
             self.assertEqual(cfg['gateway']['platforms']['telegram']['channel_overrides']['123'],{'system_prompt':'personal'})
+
+    def test_new_ownership_cannot_delete_personal_descendants(self):
+        for value in (2, None):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory)
+                original='compression:\n  personal_note: keep\n'
+                (home/'config.yaml').write_text(original)
+                with self.assertRaises(RuntimeError):
+                    restore(home,self.bundle({'compression':value}),{'model-api-key':'synthetic'})
+                self.assertEqual((home/'config.yaml').read_text(),original)
+                self.assertFalse((home/'.operator/pending.json').exists())
+
+    def test_literal_environment_and_reserved_home(self):
+        from bootstrap import load_runtime_environment
+        import os
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
+            home=Path(directory)
+            literal='prefix${HERMES_MISSING_TEST_VARIABLE}suffix'
+            (home/'.env').write_text("UNRELATED='"+literal+"'\nHOME='/tmp/escape'\nHERMES_HOME='/tmp/escape'\nHERMES_PROFILE='other'\nPYTHON_DOTENV_DISABLED='false'\n")
+            restore(home,self.bundle({'model':{'default':'declared'}}),{'model-api-key':literal})
+            load_runtime_environment(home)
+            self.assertEqual(os.environ['HERMES_MODEL_API_KEY'],literal)
+            self.assertEqual(os.environ['UNRELATED'],literal)
+            self.assertEqual(os.environ['HOME'],str(home))
+            self.assertEqual(os.environ['HERMES_HOME'],str(home))
+            self.assertNotIn('HERMES_PROFILE',os.environ)
+            self.assertEqual(os.environ['PYTHON_DOTENV_DISABLED'],'1')
+            from dotenv import dotenv_values
+            persisted=dotenv_values(home/'.env',interpolate=False)
+            self.assertEqual(persisted['UNRELATED'],literal)
+            self.assertNotIn('HOME',persisted)
+
+    def test_startup_lock_denies_second_owner_without_mutation(self):
+        from bootstrap import acquire_startup_lock
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory)
+            lock=acquire_startup_lock(home)
+            try:
+                with self.assertRaises(RuntimeError):
+                    restore(home,self.bundle({'model':{'default':'declared'}}),{'model-api-key':'synthetic'})
+                self.assertFalse((home/'config.yaml').exists())
+            finally:
+                os.close(lock)
+            restore(home,self.bundle({'model':{'default':'declared'}}),{'model-api-key':'synthetic'})

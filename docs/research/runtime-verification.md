@@ -61,3 +61,15 @@ A pending inline picker callback (`cp:0`) from an otherwise allowed sender bypas
 ## Remaining boundary
 
 Runtime adapter support is pinned to this release. `restore` rejects an unknown release/schema. This is a runtime verification result, not a claim that the operator's Kubernetes, network isolation, upgrade, Secret rotation or end-to-end conversation acceptance gates have passed.
+
+## Review follow-up: ownership, literal credentials and startup exclusivity
+
+The reviewed implementation is now covered by 19 official-image tests. New requested paths no longer count as established ownership during merge validation: adopting `compression` as a scalar or null fails before pending/config mutation when it contains unmanaged descendants. Committed/pending history still drives retired-key cleanup; a pending manifest records the union only after a valid merge.
+
+Environment files are read with `interpolate=False`, preserving literal `${...}` in both user env and Secret values. Config credential references are stored as one-pass `${ENV_NAME}` references instead of embedding secret text into YAML; this prevents YAML expansion of a secret that itself contains `${HOME}`. A matching declared env name is reused; otherwise bootstrap records a deterministic internal credential env name in ownership. The fresh-process native resolver test verifies both existing `${HOME}` and missing-variable literals exactly.
+
+The launcher sets the pinned python-dotenv library's supported `PYTHON_DOTENV_DISABLED=1` after loading literal values. The test calls upstream `load_hermes_dotenv()` again and proves values stay exact. This intentionally makes unmanaged `.env` edits startup-only; YAML and personal files remain writable. Service identity variables are removed from persisted dotenv and reasserted before skills initialization and immediately before exec: home is the PVC, profile selection is cleared, multiplexing is disabled, and Python path overrides cannot come from user dotenv.
+
+A nonblocking `.operator/startup.lock` is held across gateway exec. A second launcher fails without mutating settings; a separately started live gateway is also checked through upstream identity helpers. There is no force takeover. Restricted-image smoke started from a home containing only `workspace/keep.txt`; liveness exited 0. A second bootstrap in that container exited 1 with a sanitized startup failure. Stopping the gateway releases the lock.
+
+The combined alternate-source fixture now includes legacy `gateway.json`, stale endpoint env, literal credentials and redirected home/profile variables. Native `load_gateway_config()` verifies declared Telegram token and sender/chat allowlists defeat legacy values. Legacy channel model/provider overrides otherwise survive YAML merging; bootstrap now removes those routing fields from `gateway.json` while retaining its channel system prompt. Native provider resolver and gateway loader verify final behavior in a fresh process. Test SQLite connections and native SessionStore handles are explicitly closed before fixture cleanup; the final run has no SQLite resource warnings.
