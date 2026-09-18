@@ -22,23 +22,23 @@ $(SETUP_ENVTEST): | $(LOCALBIN)
 	$(GOFLAGS_ENV) GOBIN=$(LOCALBIN) $(GO) install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION)
 	mv $(LOCALBIN)/setup-envtest $@
 
-generate: $(CONTROLLER_GEN)
-	$(CONTROLLER_GEN) object:headerFile= paths=./api/...
+generate: generate-runtime-assets $(CONTROLLER_GEN)
+	$(GOFLAGS_ENV) $(CONTROLLER_GEN) object:headerFile= paths=./api/...
 
 manifests: $(CONTROLLER_GEN)
-	$(CONTROLLER_GEN) crd:crdVersions=v1 rbac:roleName=hermes-operator paths=./... output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/rbac
+	$(GOFLAGS_ENV) $(CONTROLLER_GEN) crd:crdVersions=v1 rbac:roleName=hermes-operator paths=./... output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/rbac
 
 test-unit:
 	$(GOFLAGS_ENV) $(GO) test ./internal/...
 
 test-envtest: $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" $(GOFLAGS_ENV) $(GO) test -count=1 ./api/v1alpha1
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" $(GOFLAGS_ENV) $(GO) test -count=1 ./api/v1alpha1 ./internal/workload
 
 test-runtime:
 	test/runtime/run.sh
 
-verify-generated: $(CONTROLLER_GEN)
-	@before=$$(mktemp); after=$$(mktemp); \
+verify-generated: verify-runtime-assets $(CONTROLLER_GEN)
+	@set -eu; before=$$(mktemp); after=$$(mktemp); \
 	trap 'rm -f "$$before" "$$after"' EXIT; \
 	find api -name 'zz_generated.deepcopy.go' -type f -print; \
 	find api -name 'zz_generated.deepcopy.go' -type f -print0 | sort -z | xargs -0 shasum > "$$before"; \
@@ -47,3 +47,10 @@ verify-generated: $(CONTROLLER_GEN)
 	find api -name 'zz_generated.deepcopy.go' -type f -print0 | sort -z | xargs -0 shasum > "$$after"; \
 	find config -type f -print0 | sort -z | xargs -0 shasum >> "$$after"; \
 	diff -u "$$before" "$$after"
+
+.PHONY: generate-runtime-assets verify-runtime-assets
+generate-runtime-assets:
+	python3 internal/workload/generate_assets.py
+
+verify-runtime-assets:
+	python3 internal/workload/generate_assets.py --check
