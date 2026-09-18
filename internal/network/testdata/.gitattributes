@@ -1,0 +1,2 @@
+# Preserve the exact fetched IANA CSV bytes, including CRLF line endings.
+iana-*.csv -text
