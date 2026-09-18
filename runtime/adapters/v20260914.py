@@ -1,0 +1,129 @@
+"""Adapter for official v2026.9.14, revision 345cd2b057a452236de401d3534b8502a7465e8d."""
+import json
+from pathlib import Path
+import sqlite3
+from contextlib import closing
+
+
+def reset_model_overrides(home: Path) -> None:
+    """Fail closed on primary failure; remove active routing fields, never history."""
+    from bootstrap import atomic_write
+    try:
+        mirror_path = home / 'sessions/sessions.json'
+        mirror = json.loads(mirror_path.read_text()) if mirror_path.exists() else {}
+        for key, entry in mirror.items():
+            if not key.startswith('_'):
+                entry.pop('model_override', None)
+        database = home / 'state.db'
+        if database.exists():
+            with closing(sqlite3.connect(f'file:{database}?mode=rw', uri=True, timeout=5)) as db, db:
+                if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+                    raise ValueError()
+                exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gateway_routing'").fetchone()
+                if exists:
+                    scope = str((home / 'sessions').resolve())
+                    for key, raw in db.execute('SELECT session_key,entry_json FROM gateway_routing WHERE scope=?', (scope,)).fetchall():
+                        entry = json.loads(raw)
+                        entry.pop('model_override', None)
+                        db.execute('UPDATE gateway_routing SET entry_json=? WHERE scope=? AND session_key=?', (json.dumps(entry), scope, key))
+                    for (raw,) in db.execute('SELECT entry_json FROM gateway_routing WHERE scope=?', (scope,)):
+                        if json.loads(raw).get('model_override'):
+                            raise ValueError()
+        if mirror_path.exists():
+            atomic_write(mirror_path, json.dumps(mirror))
+    except Exception:
+        raise RuntimeError('session restore failed') from None
+
+
+def _runtime_status(home):
+    from gateway.status import read_runtime_status, get_runtime_status_running_pid
+    record = read_runtime_status(home / 'gateway_state.json')
+    pid = get_runtime_status_running_pid(record, expected_home=home)
+    return record, (pid, record['start_time']) if pid is not None else None
+
+
+def _tick(home, pid):
+    import socket
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(2)
+        client.connect(str(home / 'state' / f'gateway.loop-tick.{pid}.sock'))
+        return client.recv(1) == b'1'
+
+
+def _created_at(pid):
+    import psutil
+    return psutil.Process(pid).create_time()
+
+
+def _health(home, readiness):
+    import time
+    try:
+        record, identity = _runtime_status(home)
+        if not identity or not record:
+            return False
+        pid, start = identity
+        if record.get('pid') != pid or record.get('start_time') != start:
+            return False
+        beat = json.loads((home/'state/gateway.heartbeat').read_text())
+        age = time.monotonic() - float(beat['monotonic'])
+        if (beat.get('pid') != pid or not _created_at(pid) <= float(beat['start_time']) <= time.time() or
+                not 0 <= age <= 90 or not beat.get('loop_tick_socket') or not _tick(home, pid)):
+            return False
+        if not readiness:
+            return True
+        telegram = record.get('platforms', {}).get('telegram', {})
+        return (record.get('gateway_state') == 'running' and
+                record.get('session_store', {}).get('status') == 'ok' and
+                telegram.get('state') == 'connected' and
+                telegram.get('writer_pid') == pid and telegram.get('writer_start_time') == start)
+    except Exception:
+        return False
+
+
+def ready(home: Path) -> bool:
+    return _health(home, True)
+
+
+def live(home: Path) -> bool:
+    return _health(home, False)
+
+
+def reset_provider_credentials(home, config):
+    """Remove only stored pool credentials that could supersede the selected provider."""
+    path = home / 'auth.json'
+    if not path.exists() and not config.get('providers') and not config.get('custom_providers'):
+        return
+    from bootstrap import atomic_write
+    from agent.credential_pool import _iter_custom_providers, _pool_keys_for_custom_entry
+    auth = json.loads(path.read_text()) if path.exists() else {}
+    model = config.get('model', {})
+    provider = model.get('provider')
+    keys = {provider} if provider and provider != 'custom' else set()
+    endpoint = str(model.get('base_url') or '').rstrip('/')
+    if provider == 'custom':
+        for name, entry in _iter_custom_providers(config):
+            if str(entry.get('base_url') or '').rstrip('/') == endpoint:
+                keys.update(_pool_keys_for_custom_entry(name, entry))
+    if provider == 'custom':
+        entries = list(config.get('providers', {}).values()) + list(config.get('custom_providers', []))
+        for entry in entries:
+            if isinstance(entry, dict) and str(entry.get('base_url') or '').rstrip('/') == endpoint:
+                entry['api_key'] = model.get('api_key', '')
+                if model.get('api_mode'):
+                    entry['api_mode'] = model['api_mode']
+                for field in ('key_cmd', 'key_env', 'api_key_env'):
+                    entry.pop(field, None)
+    pool = auth.get('credential_pool', {})
+    for key in keys:
+        pool.pop(key, None)
+    if path.exists():
+        atomic_write(path, json.dumps(auth))
+
+
+def reset_channel_overrides(config):
+    """Per-channel model/provider routing is managed; personal prompts are retained."""
+    for section in (config, config.get('gateway', {})):
+        for platform in section.get('platforms', {}).values():
+            for channel in platform.get('channel_overrides', {}).values():
+                channel.pop('model', None)
+                channel.pop('provider', None)
