@@ -129,6 +129,18 @@ func TestHermesAdmission(t *testing.T) {
 		"request-above-limit": func(o map[string]any) {
 			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"memory": "3Gi"}, "limits": map[string]any{"memory": "2Gi"}}
 		},
+		"zero-request": func(o map[string]any) {
+			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"cpu": "0"}, "limits": map[string]any{"cpu": "1"}}
+		},
+		"negative-request": func(o map[string]any) {
+			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"memory": "-1Mi"}, "limits": map[string]any{"memory": "2Gi"}}
+		},
+		"zero-limit": func(o map[string]any) {
+			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"cpu": "0"}, "limits": map[string]any{"cpu": "0"}}
+		},
+		"negative-limit": func(o map[string]any) {
+			o["spec"].(map[string]any)["resources"] = map[string]any{"limits": map[string]any{"memory": "-1Mi"}}
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -287,6 +287,10 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
+                - message: resource requests must be positive
+                  rule: '!has(self.requests) || self.requests.all(k, quantity(self.requests[k]).isGreaterThan(quantity(''0'')))'
+                - message: resource limits must be positive
+                  rule: '!has(self.limits) || self.limits.all(k, quantity(self.limits[k]).isGreaterThan(quantity(''0'')))'
                 - message: each resource request must be less than or equal to its
                     limit
                   rule: '!has(self.requests) || !has(self.limits) || self.requests.all(k,

@@ -182,6 +182,8 @@ type MemorySpec struct {
 }
 
 // ResourcesSpec limits the container's standard Kubernetes resources.
+// +kubebuilder:validation:XValidation:rule="!has(self.requests) || self.requests.all(k, quantity(self.requests[k]).isGreaterThan(quantity('0')))",message="resource requests must be positive"
+// +kubebuilder:validation:XValidation:rule="!has(self.limits) || self.limits.all(k, quantity(self.limits[k]).isGreaterThan(quantity('0')))",message="resource limits must be positive"
 // +kubebuilder:validation:XValidation:rule="!has(self.requests) || !has(self.limits) || self.requests.all(k, !(k in self.limits) || quantity(self.requests[k]).compareTo(quantity(self.limits[k])) <= 0)",message="each resource request must be less than or equal to its limit"
 type ResourcesSpec struct {
 	// +kubebuilder:default:={cpu:100m,memory:512Mi,ephemeral-storage:256Mi}
