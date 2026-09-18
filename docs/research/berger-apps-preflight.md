@@ -84,3 +84,11 @@ For development installation, a conservative configured pod deny aggregate `10.4
 ## Native inference request
 
 The real official Hermes CLI in the restricted gateway Pod completed a one-shot request using its restored native configuration (no command-line model/provider override), returning `готов` and exit code 0. It used a hidden `tool` source session and ignored user rules for this bounded smoke. No Telegram message was sent. This verifies the native Hermes request pipeline to the supplied inference with the configured `xhigh` default, beyond the direct HTTP API check.
+
+## Generated compiler policy on the actual Hermes Pod
+
+After Task4 review (`90c5ce8`), the policy compiled from the real Hermes CR and validated installation settings was applied as `hermes-smoke-hermes`. The manual gateway Pod received the CR UID selector label; the earlier hand-built `runtime-smoke-isolation` policy was removed. Only the generated policy remained for this installation.
+
+An unrestricted fixture proved both controlled target ports 8080/8081, Service API `10.43.0.1:443` and hosting-node API `192.168.0.202:6443` reachable. From the actual Hermes container all four were rejected with errno 111. Exact inference `192.168.0.210:443`, configured DNS UDP/TCP and public TCP/UDP remained reachable. Script `check-compiled-network.py` and `network-compiled-results.json` are in `/tmp/hermes-operator-deploy`. This is actual generated-policy CNI proof on Berger Apps; creation by the reconciler still awaits Task6.
+
+Later observation found two additional liveness-triggered restarts beyond the deliberate restart test (last at 13:26:31 UTC, count 3). No OOM or application traceback was present in previous logs. Twenty subsequent live-probe calls all passed, with no further restart during the bounded check; the cause is not declared fixed. Final workload probes use the specified 30-second liveness interval rather than the preliminary manual 10 seconds. Further runtime acceptance must track this observation.
