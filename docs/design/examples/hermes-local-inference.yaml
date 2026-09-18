@@ -1,0 +1,33 @@
+# Пример: значения модели, ID и IP заменить фактическими.
+apiVersion: hermes.wbe7.github.io/v1alpha1
+kind: Hermes
+metadata:
+  name: maria
+  namespace: hermes-users
+spec:
+  version: v2026.9.14
+  credentials:
+    secretName: maria-hermes-secret
+  model:
+    provider: custom
+    name: tenant-model
+    baseURL: http://192.168.50.10:8000/v1
+    apiMode: chat_completions
+    auth: None
+  reasoning:
+    effort: medium
+  telegram:
+    allowedUserIDs: ["123456789"]
+    groups:
+      enabled: false
+  storage:
+    create:
+      size: 20Gi
+      accessMode: ReadWriteOnce
+    deletionPolicy: Retain
+  network:
+    allowPrivate:
+      - ip: 192.168.50.10
+        ports:
+          - port: 8000
+            protocol: TCP

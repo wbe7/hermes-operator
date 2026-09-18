@@ -1,0 +1,18 @@
+# PVC maria-home и Secret maria-hermes-secret предоставлены администратором.
+# Existing PVC сохраняется при удалении CR.
+apiVersion: hermes.wbe7.github.io/v1alpha1
+kind: Hermes
+metadata:
+  name: maria
+  namespace: hermes-users
+spec:
+  version: v2026.9.14
+  model:
+    provider: custom
+    name: tenant-model
+    baseURL: https://inference.example.com/v1
+  telegram:
+    allowedUserIDs: ["123456789"]
+  storage:
+    existingClaim: maria-home
+    deletionPolicy: Retain
