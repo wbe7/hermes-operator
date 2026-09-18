@@ -32,7 +32,7 @@ test-unit:
 	$(GOFLAGS_ENV) $(GO) test ./internal/...
 
 test-envtest: $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" $(GOFLAGS_ENV) $(GO) test -count=1 ./api/v1alpha1 ./internal/workload
+	KUBEBUILDER_ASSETS="$$($(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" $(GOFLAGS_ENV) $(GO) test -count=1 ./api/v1alpha1 ./internal/workload ./internal/controller
 
 test-runtime:
 	test/runtime/run.sh
