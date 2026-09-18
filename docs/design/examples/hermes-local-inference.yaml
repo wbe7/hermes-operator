@@ -15,7 +15,7 @@ spec:
     apiMode: chat_completions
     auth: None
   reasoning:
-    effort: medium
+    effort: xhigh
   telegram:
     allowedUserIDs: ["123456789"]
     groups:

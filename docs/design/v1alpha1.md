@@ -47,7 +47,7 @@
 | `model.auth` | `APIKey` / `None`, default `APIKey` | `None` разрешён только для явно заданного custom endpoint. Не требует фиктивного Secret с ключом модели. |
 | `model.apiKeySecretRef` | SecretKeyRef, default key `MODEL_API_KEY` | Нельзя задать при `auth: None`. Для custom mapping через `HERMES_MODEL_API_KEY`; для built-in — provider-specific env. |
 | `model.contextLength` | positive integer, optional | Mapping: `model.context_length`; отсутствие восстанавливает upstream default. |
-| `reasoning.effort` | nonempty string, optional | Mapping: `agent.reasoning_effort`. Отсутствие возвращает upstream default, а не оставляет локально выбранный effort. |
+| `reasoning.effort` | nonempty string = `xhigh` | Mapping: `agent.reasoning_effort`. Default явно выбран пользователем. Отсутствие возвращает xhigh, а не оставляет локально выбранный effort. |
 | `reasoning.overrides` | map model-name → effort, default `{}` | Mapping: `agent.reasoning_overrides`; явные per-model исключения. |
 
 Первый обязательный provider path — `custom` с OpenAI-compatible inference. `openrouter` и `anthropic` включаются в матрицу после проверки их штатных resolver. Остальные providers не получают ложной гарантии: новый provider требует mapping credentials в адаптере и теста; до этого — `UnsupportedProvider`. OAuth-входы, interactive login и облачная workload identity не входят в первоначальную матрицу.
@@ -66,6 +66,8 @@ Secret-значения не попадают в ConfigMap, CR/status, Events и
 | `telegram.groups.allowedChatIDs` | set of negative decimal strings, default `[]` | При enabled=true обязателен непустой список; при false список должен быть пуст. |
 
 В группе одновременно должны пройти проверку chat ID и sender ID. Включение группы не авторизует всех её участников. `guest_mode` выключен; пустые upstream lists не используются как эквивалент запрета. Способ DM-only для выбранного release должен пройти тесты text/command/media/callback; исследуемый непустой нечисловой marker в `allowed_chats` пока не доказан runtime-тестом.
+
+**Принятое пользователем ограничение v1:** в официальном v2026.9.14 старый pending inline picker может обработать callback разрешённого пользователя в запрещённой группе и изменить модель/reasoning. Обычные text/command/media проходят group gate; неавторизованные отправители по-прежнему отклоняются. Пользователь явно согласовал этот узкий дефект вместо patch upstream. В тестах он фиксируется отдельно и не маскируется обещанием полной блокировки любых callbacks.
 
 Адаптер задаёт Telegram как единственный активный внешний канал при старте, polling и выключенный profile multiplexing. Поведение фильтров и исходные источники: [mapping](../research/config-mapping.md).
 
@@ -228,7 +230,7 @@ Exec probes используют shipped probe script и штатный runtime 
 | --- | --- | --- |
 | A01 | Две инсталляции в разных namespaces | Разные workload/PVC/credentials, отсутствие cross-namespace refs. |
 | A02 | Разрешённый Telegram DM и персонализация | Ответ пользователю, сохранение имени/предпочтений, изменения SOUL/personality. |
-| A03 | Чужой sender и запрещённая группа | Text/commands/media/callback не запускают agent turn. |
+| A03 | Чужой sender и запрещённая группа | Неавторизованный sender отклоняется, text/commands/media запрещённой группы не запускают agent turn; старый inline callback разрешённого sender проверяется и документируется как принятое ограничение v1. |
 | A04 | Runtime смена модели, provider и reasoning | После same-Pod container restart CR восстановлен в прежней сессии; session ID/history неизменны. |
 | A05 | Pod replacement, CR update, Secret rotation | Сохранены SOUL, личный config, memory, skills, cron, workspace, история. |
 | A06 | Extra path удалён из CR | Удалено прежнее управляемое значение, пользовательский соседний ключ сохранён. |
