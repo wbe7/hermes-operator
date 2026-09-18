@@ -85,3 +85,32 @@ func TestExtraConfigLimitsAndCredentialReference(t *testing.T) {
 		t.Fatal("oversized input accepted")
 	}
 }
+
+func TestRejectCredentialObjectsAndInternalMarkers(t *testing.T) {
+	for _, tc := range []struct{ name, raw, path string }{
+		{"credential field marker", `{"auxiliary":{"vision":{"api_key":{"credential":"${VISION_API_KEY}"}}}}`, "spec.extraConfig.auxiliary.vision.api_key"},
+		{"credential field object", `{"auxiliary":{"vision":{"api_key":{"nested":"SENTINEL"}}}}`, "spec.extraConfig.auxiliary.vision.api_key"},
+		{"credential field empty object", `{"auxiliary":{"vision":{"api_key":{}}}}`, "spec.extraConfig.auxiliary.vision.api_key"},
+		{"credential field list", `{"auxiliary":{"vision":{"api_key":["SENTINEL"]}}}`, "spec.extraConfig.auxiliary.vision.api_key"},
+		{"marker in safe subtree", `{"safe":{"credential":"${VISION_API_KEY}"}}`, "spec.extraConfig.safe"},
+		{"marker in list", `{"safe":[{"credential":"${VISION_API_KEY}"}]}`, "spec.extraConfig.safe.[]"},
+		{"root marker", `{"credential":"${VISION_API_KEY}"}`, "spec.extraConfig"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, r := fixture()
+			h.Spec.Credentials.Env = map[string]v1.SecretKeyRef{"VISION_API_KEY": {Key: "vision"}}
+			h.Spec.ExtraConfig = &runtime.RawExtension{Raw: []byte(tc.raw)}
+			err := Validate(h, r)
+			if err == nil {
+				t.Fatal("unsafe credential shape accepted")
+			}
+			if !strings.Contains(err.Error(), tc.path) || strings.Contains(err.Error(), "SENTINEL") || strings.Contains(err.Error(), "${VISION_API_KEY}") {
+				t.Fatalf("expected path-only error: %v", err)
+			}
+			bundle, err := Render(h, r, sources())
+			if err == nil || len(bundle.JSON) != 0 || len(bundle.SecretData) != 0 {
+				t.Fatal("rejected configuration produced a bundle")
+			}
+		})
+	}
+}

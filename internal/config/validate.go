@@ -96,7 +96,26 @@ func walkExtra(h *v1.Hermes, value any, path []string) error {
 	if len(path) > 16 {
 		return invalid("spec.extraConfig."+strings.Join(path, "."), "maximum depth exceeded")
 	}
+	p := strings.Join(path, ".")
+	fieldPath := "spec.extraConfig"
+	if p != "" {
+		fieldPath += "." + p
+	}
+	// Validate credential field shape before descending: objects must never be
+	// mistaken for runtime-internal credential references.
+	if len(path) > 0 && secretField(path[len(path)-1]) && value != nil {
+		str, ok := value.(string)
+		if !ok || !strings.HasPrefix(str, "${") || !strings.HasSuffix(str, "}") {
+			return invalid(fieldPath, "credential literals are forbidden")
+		}
+		if _, ok := h.Spec.Credentials.Env[str[2:len(str)-1]]; !ok {
+			return invalid(fieldPath, "requires a credentials.env reference")
+		}
+	}
 	if object, ok := value.(map[string]any); ok {
+		if _, marker := object["credential"]; marker && len(object) == 1 {
+			return invalid(fieldPath, "internal credential markers are forbidden")
+		}
 		for k, v := range object {
 			if k == "" || strings.ContainsAny(k, "\x00\r\n") {
 				return invalid("spec.extraConfig", "invalid key")
@@ -107,21 +126,12 @@ func walkExtra(h *v1.Hermes, value any, path []string) error {
 		}
 		return nil
 	}
-	p := strings.Join(path, ".")
 	for _, blocked := range protected {
 		if p == blocked || strings.HasPrefix(p, blocked+".") || strings.HasPrefix(blocked, p+".") {
 			return invalid("spec.extraConfig."+p, "conflicts with managed or personal path")
 		}
 	}
-	if len(path) > 0 && secretField(path[len(path)-1]) && value != nil {
-		str, ok := value.(string)
-		if !ok || !strings.HasPrefix(str, "${") || !strings.HasSuffix(str, "}") {
-			return invalid("spec.extraConfig."+p, "credential literals are forbidden")
-		}
-		if _, ok := h.Spec.Credentials.Env[str[2:len(str)-1]]; !ok {
-			return invalid("spec.extraConfig."+p, "requires a credentials.env reference")
-		}
-	}
+
 	// Lists are ownership leaves, but credential literals can be nested within them.
 	if list, ok := value.([]any); ok {
 		for _, v := range list {
