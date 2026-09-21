@@ -74,7 +74,7 @@ func TestHermesAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	defaults := map[string]any{
-		"spec.image.repository":          "docker.io/nousresearch/hermes-agent",
+		"spec.image.repository":          "docker.io/wbe7/hermes",
 		"spec.model.auth":                "APIKey",
 		"spec.reasoning.effort":          "xhigh",
 		"spec.telegram.groups.enabled":   false,

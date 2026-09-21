@@ -60,7 +60,7 @@ type HermesSpec struct {
 }
 
 type ImageSpec struct {
-	// +kubebuilder:default="docker.io/nousresearch/hermes-agent"
+	// +kubebuilder:default="docker.io/wbe7/hermes"
 	Repository string `json:"repository,omitempty"`
 	// +kubebuilder:validation:Pattern=`^sha256:[a-f0-9]{64}$`
 	Digest string `json:"digest,omitempty"`

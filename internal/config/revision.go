@@ -17,12 +17,7 @@ type secretIdentity struct {
 
 func computeRevision(h *v1.Hermes, r runtimecatalog.Release, input []byte, data map[string][]byte, ids []secretIdentity) string {
 	image := h.Spec.Image
-	if image.Repository == "" {
-		image.Repository = "docker.io/nousresearch/hermes-agent"
-	}
-	if image.Digest == "" {
-		image.Digest = r.ImageDigest
-	}
+	image.Repository, image.Digest = r.ResolveImage(image.Repository, image.Digest)
 	if image.PullPolicy == "" {
 		image.PullPolicy = "IfNotPresent"
 	}

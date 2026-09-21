@@ -59,7 +59,10 @@ func TestOfficialRuntime(t *testing.T) {
 			write(filepath.Join(directory, scenario, "credentials", name), data)
 		}
 	}
-	image := "nousresearch/hermes-agent@sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294"
+	image := os.Getenv("HERMES_RUNTIME_IMAGE")
+	if image == "" {
+		image = "nousresearch/hermes-agent@sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294"
+	}
 	cmd := exec.Command("docker", "run", "--rm", "--pull=never", "--user", "10000:10000", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--network=none", "--tmpfs", "/tmp:rw,nosuid,nodev", "--entrypoint", "/opt/hermes/.venv/bin/python", "-v", root+"/runtime:/runtime:ro", "-v", root+"/internal/config/testdata:/checks:ro", "-v", directory+":/fixtures:ro", image, "-I", "/checks/verify_runtime.py")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("official runtime: %v\n%s", err, out)

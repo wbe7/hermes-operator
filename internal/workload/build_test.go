@@ -88,7 +88,7 @@ func TestBuildSecurityAndStartup(t *testing.T) {
 	if *p.TerminationGracePeriodSeconds != 60 {
 		t.Fatal("grace")
 	}
-	if c.Image != "docker.io/nousresearch/hermes-agent@"+r.ImageDigest {
+	if c.Image != runtimecatalog.DefaultImageRepository+"@"+r.ImageDigest {
 		t.Fatal("unpinned image")
 	}
 	for _, obj := range []metav1.Object{out.StatefulSet, out.Service, out.ServiceAccount, out.ConfigMap, out.Secret, out.Bootstrap} {

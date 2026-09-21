@@ -4,6 +4,12 @@
 
 Agent Pod запускается с UID/GID/fsGroup 10000, `runAsNonRoot`, `allowPrivilegeEscalation: false`, `drop: ALL`, `RuntimeDefault` seccomp и read-only root filesystem. Writable home находится на PVC. Это уменьшает риск, но не является абсолютной защитой от kernel/container escape.
 
+Расширенный [образ агента](agent-image.md) содержит браузер и документные утилиты,
+установленные на этапе сборки. Runtime `apt`/sudo не предоставляется. Chromium
+запускается с `--no-sandbox`: отдельная внутренняя sandbox браузера не обещается,
+основной границей остаются non-root контейнер и ограничения Kubernetes. Браузер
+делит доступ к файлам своей инсталляции с агентом.
+
 NetworkPolicy закрывает ingress и private/special egress, разрешает публичные назначения, заданный DNS и точные `network.allowPrivate` IP. Политики Kubernetes складываются; другая разрешающая policy может расширить доступ. NAT/node traffic и enforcement зависят от CNI. Публичные infrastructure ranges нужно явно включить в `infrastructureCIDRs`.
 
 Для local inference по HTTP используйте `provider: custom`, `apiMode: chat_completions`, `auth: None` и точное IP-исключение, как в [примере](../../examples/hermes-local-inference.yaml). Hostname/CIDR exception и произвольный Responses endpoint в v1 не поддержаны.

@@ -37,6 +37,13 @@ test-envtest: $(SETUP_ENVTEST)
 test-runtime:
 	test/runtime/run.sh
 
+.PHONY: build-hermes-image test-hermes-image
+build-hermes-image:
+	docker buildx build --platform linux/amd64,linux/arm64 --load -t wbe7/hermes:v2026.9.14 -f images/hermes/Dockerfile images/hermes
+
+test-hermes-image:
+	sh images/hermes/run-smoke.sh
+
 verify-generated: verify-runtime-assets $(CONTROLLER_GEN)
 	CONTROLLER_GEN=$(CONTROLLER_GEN) hack/verify-generated.sh
 

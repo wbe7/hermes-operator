@@ -7,8 +7,8 @@
 | Поле | Обязательность и default | Применение |
 | --- | --- | --- |
 | `version` | обязательно | Точный release из каталога оператора; `latest` не используется. |
-| `image.repository` | `docker.io/nousresearch/hermes-agent` | Зеркало исходного Hermes image. |
-| `image.digest` | digest каталога | Если задан, должен совпадать с каталогом. Workload всегда запускается по digest. |
+| `image.repository` | `docker.io/wbe7/hermes` | Образ с браузером и документными инструментами или зеркало. Явный `docker.io/nousresearch/hermes-agent` сохраняет выбор официального образа. |
+| `image.digest` | digest выбранного варианта из каталога | Если задан, должен быть зарегистрирован для версии Hermes. Workload всегда запускается по digest. |
 | `image.pullPolicy` | `IfNotPresent` | `IfNotPresent` или `Always`. |
 | `image.pullSecrets[]` | `[]` | Имена Secrets в том же namespace. |
 | `credentials.secretName` | `<имя CR>-hermes-secret` | Обычный Secret для model/Telegram refs без явного имени. |

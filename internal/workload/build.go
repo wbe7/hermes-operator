@@ -46,13 +46,8 @@ func Build(h *v1.Hermes, release runtimecatalog.Release, bundle config.Bundle, c
 	metadata := func(n string) metav1.ObjectMeta {
 		return metav1.ObjectMeta{Name: n, Namespace: h.Namespace, Labels: maps.Clone(labels), OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(h, v1.GroupVersion.WithKind("Hermes"))}}
 	}
-	repository, digest, pull := h.Spec.Image.Repository, h.Spec.Image.Digest, h.Spec.Image.PullPolicy
-	if repository == "" {
-		repository = "docker.io/nousresearch/hermes-agent"
-	}
-	if digest == "" {
-		digest = release.ImageDigest
-	}
+	repository, digest := release.ResolveImage(h.Spec.Image.Repository, h.Spec.Image.Digest)
+	pull := h.Spec.Image.PullPolicy
 	if pull == "" {
 		pull = corev1.PullIfNotPresent
 	}

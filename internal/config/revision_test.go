@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
+	"github.com/wbe7/hermes-operator/internal/runtimecatalog"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -49,7 +50,7 @@ func TestNormalizedOrderingAndExplicitDefaults(t *testing.T) {
 	h.Spec.Reasoning.Effort = "xhigh"
 	h.Spec.Model.Auth = "APIKey"
 	h.Spec.Model.APIMode = "chat_completions"
-	h.Spec.Image.Repository = "docker.io/nousresearch/hermes-agent"
+	h.Spec.Image.Repository = runtimecatalog.DefaultImageRepository
 	h.Spec.Image.Digest = r.ImageDigest
 	h.Spec.Image.PullPolicy = "IfNotPresent"
 	after, err := Render(h, r, sources())

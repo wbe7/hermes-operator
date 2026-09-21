@@ -116,7 +116,7 @@ spec:
                     maxItems: 16
                     type: array
                   repository:
-                    default: docker.io/nousresearch/hermes-agent
+                    default: docker.io/wbe7/hermes
                     type: string
                 type: object
               memory:

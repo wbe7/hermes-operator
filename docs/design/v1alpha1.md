@@ -23,8 +23,8 @@
 | Поле | Тип / default | Контракт |
 | --- | --- | --- |
 | `version` | string, required | Точный release из каталога оператора. |
-| `image.repository` | string = `docker.io/nousresearch/hermes-agent` | Можно указать зеркало того же образа. Не содержит tag или digest. |
-| `image.digest` | string, optional | Если задан, обязан совпадать с digest выбранного release. При отсутствии берётся из каталога. |
+| `image.repository` | string = `docker.io/wbe7/hermes` | Расширенный runtime или его зеркало. Явный `docker.io/nousresearch/hermes-agent` выбирает исходный образ. Не содержит tag или digest. |
+| `image.digest` | string, optional | Если задан, обязан совпадать с одним из проверенных digest выбранного release. При отсутствии берётся вариант из каталога по repository. |
 | `image.pullPolicy` | `IfNotPresent` / `Always`, default `IfNotPresent` | Workload всегда использует digest. |
 | `image.pullSecrets` | list of local names, default `[]` | Передаются как Kubernetes imagePullSecrets. |
 

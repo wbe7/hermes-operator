@@ -156,8 +156,8 @@ func Validate(h *v1.Hermes, r runtimecatalog.Release) error {
 	if h.Spec.Version != r.Version || r.Version != "v2026.9.14" {
 		return invalid("spec.version", "UnsupportedVersion")
 	}
-	if h.Spec.Image.Digest != "" && h.Spec.Image.Digest != r.ImageDigest {
-		return invalid("spec.image.digest", "must match release digest")
+	if h.Spec.Image.Digest != "" && h.Spec.Image.Digest != r.ImageDigest && h.Spec.Image.Digest != r.UpstreamImageDigest {
+		return invalid("spec.image.digest", "must match a verified release image digest")
 	}
 	if h.Spec.Model.Provider != "custom" {
 		return invalid("spec.model.provider", "UnsupportedProvider")

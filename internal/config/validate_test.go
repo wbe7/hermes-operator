@@ -14,6 +14,21 @@ func fixture() (*v1.Hermes, runtimecatalog.Release) {
 	r, _ := runtimecatalog.Resolve("v2026.9.14")
 	return &v1.Hermes{ObjectMeta: metav1.ObjectMeta{Name: "maria", Namespace: "tenant"}, Spec: v1.HermesSpec{Version: r.Version, Model: v1.ModelSpec{Provider: "custom", Name: "test-model", BaseURL: "https://inference.invalid/v1"}, Telegram: v1.TelegramSpec{AllowedUserIDs: []string{"123"}}}}, r
 }
+
+func TestOnlyRegisteredImageDigestsAreAccepted(t *testing.T) {
+	h, r := fixture()
+	r.ImageDigest, r.UpstreamImageDigest = "sha256:document", "sha256:upstream"
+	for _, digest := range []string{"", r.ImageDigest, r.UpstreamImageDigest} {
+		h.Spec.Image.Digest = digest
+		if err := Validate(h, r); err != nil {
+			t.Fatalf("registered digest rejected: %v", err)
+		}
+	}
+	h.Spec.Image.Digest = "sha256:unknown"
+	if Validate(h, r) == nil {
+		t.Fatal("unverified image accepted")
+	}
+}
 func TestRejectConflictingExtraConfig(t *testing.T) {
 	for _, raw := range []string{`{"model":{"default":"SENTINEL"}}`, `{"agent":"SENTINEL"}`, `{"display":{"personality":"SENTINEL"}}`, `{"agent":{"system_prompt":"SENTINEL"}}`, `{"gateway":{"platforms":{"telegram":{"extra":{"guest_mode":true}}}}}`, `{"auxiliary":{"vision":{"api_key":"SENTINEL"}}}`, `{"terminal":{"cwd":"SENTINEL"}}`, `{"custom_providers":[{"api_key":"SENTINEL"}]}`} {
 		t.Run(raw, func(t *testing.T) {

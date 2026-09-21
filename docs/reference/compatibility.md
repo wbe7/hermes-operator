@@ -15,6 +15,10 @@ commit and actual image ID, not an unpublished release tag.
 
 Pinned original Hermes: `v2026.9.14`, multiarch image digest
 `sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`.
+The default derived image is `wbe7/hermes:v2026.9.14`, pinned multiarch digest
+`sha256:feecb5d71f4876758b61e83cf1527fa6cdbb4f7e8919808c5eed7daf5085640f`.
+Its browser, office, PDF and OCR coverage is recorded separately in
+[agent image validation](../research/agent-image-validation.md).
 The kind node and fixture images are digest-pinned in `hack/e2e-cluster.sh` and
 `test/e2e/fixtures/acceptance.py`; Calico artifacts have embedded SHA256 checks.
 Helm CLI used locally/CI is v3.15.0.
