@@ -48,7 +48,8 @@ jobs:
           load: true
           tags: wbe7/hermes:v2026.9.14-${{ matrix.architecture }}
           cache-from: type=gha,scope=hermes-${{ matrix.architecture }}
-          cache-to: type=gha,scope=hermes-${{ matrix.architecture }},mode=max
+          # Cache outages must not skip acceptance of an already built image.
+          cache-to: type=gha,scope=hermes-${{ matrix.architecture }},mode=max,ignore-error=true
       - name: Browser, office, PDF, OCR and chart acceptance
         env:
           HERMES_TOOLS_IMAGE: wbe7/hermes:v2026.9.14-${{ matrix.architecture }}
