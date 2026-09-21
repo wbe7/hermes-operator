@@ -1,6 +1,6 @@
 # Контракт установки и эксплуатации v1
 
-Статус: спецификация установочного пакета; chart и команды ниже реализуются по [плану](../superpowers/plans/2026-09-18-hermes-operator.md). На текущем этапе их нельзя считать доступной установкой продукта.
+Статус: установочный пакет и команды реализованы в исходниках. Публичный operator image ещё не опубликован; полная кластерная приёмка Task 8 остаётся release gate.
 
 ## Поддерживаемое окружение
 
@@ -44,7 +44,7 @@ networkPolicy:
 
 `enforcementConfirmed` по умолчанию false: chart просит установщика подтвердить, что он выбрал CNI с enforcement. Это декларация установщика, не автоматическая аттестация сети. Все четыре CIDR arrays должны быть явно заданы; пустой infrastructureCIDRs допустим. Pod/Service/node arrays непустые и включают используемые IPv4/IPv6 сети. Отсутствующие параметры не заменяются выдуманными `10.*` defaults.
 
-DNS: `podSelector` ограничивает namespace и Pod одновременно; `resolverIPs` разрешает точные IP только UDP/TCP 53, покрывая Service IP или NodeLocal DNS. Можно задать только одну форму, но хотя бы одна обязательна. NodeLocal/host-network DNS требует реального теста поведения CNI. DNS exemption не открывает весь kube-system или всю node subnet.
+DNS: `podSelector` ограничивает namespace и Pod одновременно; `resolverIPs` разрешает точные IP только UDP/TCP 53, покрывая Service IP или NodeLocal DNS. Хотя бы одна форма обязательна; обе можно задать вместе, например для Pod DNS и точного NodeLocal resolver. Установщик обязан проверить каждое выбранное DNS-направление: автоматического discovery и общего разрешения private-сети нет. NodeLocal/host-network DNS требует реального теста поведения CNI. DNS exemption не открывает весь kube-system или всю node subnet.
 
 Сети инфраструктуры с публичными адресами также включаются в infrastructureCIDRs. Иначе правило «разрешить публичный интернет» закономерно разрешит эти адреса. NAT64-only окружения исключены из первой матрицы, обычный IPv4 и native dual-stack проверяются отдельно.
 
@@ -66,7 +66,7 @@ RBAC controller не включает cluster-admin, изменение Nodes, e
 
 При watch Secret предпочтителен metadata-only cache и отдельный uncached GET выбранных ссылок. Это снижает объём содержимого Secrets в памяти, но не уменьшает фактические RBAC полномочия.
 
-## Последовательность установки после реализации
+## Последовательность установки
 
 1. Проверить CNI, storage class и реальные CIDR/DNS; подготовить values.
 2. Установить CRD и оператор в отдельный namespace:
@@ -83,7 +83,7 @@ kubectl rollout status deployment/hermes-operator -n hermes-system
 4. Создать Hermes CR из примера и проверить его Conditions. Missing dependency диагностируется до запуска.
 5. Проверить разрешённый DM, запрещённого sender и сетевой smoke из того же Pod context.
 
-Документированные installation artifacts: минимальный CR/Secret template, полный CR, custom inference с IP exception, existing PVC, Retain/Delete, Secret rotation, private registry mirror, namespace admin RBAC. Они становятся применяемыми примерами после CRD/schema проверки в CI.
+Документированные installation artifacts: минимальный CR/Secret template, custom inference с IP exception, existing PVC и namespace admin RBAC. Применяемые копии находятся в `examples/`; три Hermes CR проходят CRD admission test, а CI проверяет все примеры на временном API server без запуска фиктивных credentials.
 
 ## Обновление
 

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: go1.27.1
+  GOMODCACHE: /tmp/hermes-go-mod
+  GOCACHE: /tmp/hermes-go-cache
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: go.sum
+      - run: make test-unit test-e2e-harness
+
+  envtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: go.sum
+      - run: make test-envtest
+
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker pull nousresearch/hermes-agent@sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294
+      - run: make test-runtime
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: go.sum
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.0
+      - run: make lint-chart verify-docs verify-generated
+      - run: go vet ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.1
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.0
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.36.4
+      - name: Install pinned kind CLI
+        run: |
+          curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          curl -fsSLo /tmp/kind.sha256sum https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64.sha256sum
+          expected=$(cut -d ' ' -f 1 /tmp/kind.sha256sum)
+          echo "$expected  /tmp/kind" | sha256sum --check
+          chmod +x /tmp/kind
+      - name: Native Calico and Helm acceptance
+        run: KIND=/tmp/kind E2E_DIR=/tmp/hermes-e2e-ci make test-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-evidence
+          path: |
+            /tmp/hermes-e2e-ci/*.json
+            /tmp/hermes-e2e-ci/*.txt

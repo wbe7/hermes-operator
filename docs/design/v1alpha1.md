@@ -1,6 +1,6 @@
 # Hermes Operator: спецификация первой версии
 
-Дата: 2026-09-18. Статус: контракт для реализации после завершённого интервью. Это спецификация, а не объявление готового продукта: CRD, контроллер и испытания ещё предстоит реализовать.
+Дата: 2026-09-18. Статус: CRD, контроллер, runtime и исполняемый acceptance harness реализованы и прошли review исходников; полная release qualification остаётся открытой. Текущие результаты и незакрытые gates — в [acceptance ledger](../research/v1-acceptance.md).
 
 Продуктовые решения находятся в [интервью](interview.md), причины архитектурных границ — в [ADR](../adr/0001-declarative-configuration-authority.md). Этот документ фиксирует выбранные инженерные defaults и поведение API. Изменения, необходимые по результатам испытаний, отражаются здесь до публикации API. Работа по реализации разбита в [плане](../superpowers/plans/2026-09-18-hermes-operator.md).
 
@@ -18,17 +18,17 @@
 
 `spec.version` обязателен: нет неявного `latest` и автоматического обновления Hermes. В составе оператора находится каталог поддерживаемых release → image digest → startup adapter. Неизвестная версия даёт `UnsupportedVersion` до запуска workload. В каталог поддержки версия попадает только после runtime-проверок.
 
-Первый кандидат — `v2026.9.14`, source revision `345cd2b057a452236de401d3534b8502a7465e8d`, официальный multiarch digest `sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`. Registry metadata проверены ранее, запуск ещё не проверен. См. [исследование](../research/upstream-and-isolation.md).
+Поддерживаемый v1 runtime — `v2026.9.14`, source revision `345cd2b057a452236de401d3534b8502a7465e8d`, официальный multiarch digest `sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`. Локальные adapter/runtime tests на pinned image выполнены; полная кластерная приёмка остаётся Task 8. См. [runtime verification](../research/runtime-verification.md) и [исследование upstream](../research/upstream-and-isolation.md).
 
 | Поле | Тип / default | Контракт |
 | --- | --- | --- |
 | `version` | string, required | Точный release из каталога оператора. |
-| `image.repository` | string = `docker.io/nousresearch/hermes-agent` | Можно указать зеркало того же образа. Не содержит tag или digest. |
-| `image.digest` | string, optional | Если задан, обязан совпадать с digest выбранного release. При отсутствии берётся из каталога. |
+| `image.repository` | string = `docker.io/wbe7/hermes` | Расширенный runtime или его зеркало. Явный `docker.io/nousresearch/hermes-agent` выбирает исходный образ. Не содержит tag или digest. |
+| `image.digest` | string, optional | Если задан, обязан совпадать с одним из проверенных digest выбранного release. При отсутствии берётся вариант из каталога по repository. |
 | `image.pullPolicy` | `IfNotPresent` / `Always`, default `IfNotPresent` | Workload всегда использует digest. |
 | `image.pullSecrets` | list of local names, default `[]` | Передаются как Kubernetes imagePullSecrets. |
 
-Для CR `maria`: StatefulSet и headless Service — `maria-hermes`; Pod — `maria-hermes-0`; созданный PVC — `maria-hermes-data`; ServiceAccount и NetworkPolicy — `maria-hermes`. Имена CR ограничены DNS label длиной 40 символов, чтобы сохранить запас для суффиксов и revision.
+Для CR `maria`: StatefulSet и headless Service — `maria-hermes`; Pod — `maria-hermes-0`; созданный PVC — `maria-hermes-data`; ServiceAccount и NetworkPolicy — `maria-hermes`. Имена CR ограничены DNS label длиной до 40 символов с начальной буквой a-z и без точек, чтобы сохранить запас для суффиксов и revision.
 
 Внутренние input bundles получают имя `<name>-hermes-input-<revision>`. Они имеют ownerReference на CR. Чужие одноимённые объекты не усыновляются и не перезаписываются: `ResourceConflict`. Исключения — только явно указанные Secret и existing PVC, которые остаются внешними.
 
@@ -47,10 +47,10 @@
 | `model.auth` | `APIKey` / `None`, default `APIKey` | `None` разрешён только для явно заданного custom endpoint. Не требует фиктивного Secret с ключом модели. |
 | `model.apiKeySecretRef` | SecretKeyRef, default key `MODEL_API_KEY` | Нельзя задать при `auth: None`. Для custom mapping через `HERMES_MODEL_API_KEY`; для built-in — provider-specific env. |
 | `model.contextLength` | positive integer, optional | Mapping: `model.context_length`; отсутствие восстанавливает upstream default. |
-| `reasoning.effort` | nonempty string, optional | Mapping: `agent.reasoning_effort`. Отсутствие возвращает upstream default, а не оставляет локально выбранный effort. |
+| `reasoning.effort` | nonempty string = `xhigh` | Mapping: `agent.reasoning_effort`. Default явно выбран пользователем. Отсутствие возвращает xhigh, а не оставляет локально выбранный effort. |
 | `reasoning.overrides` | map model-name → effort, default `{}` | Mapping: `agent.reasoning_overrides`; явные per-model исключения. |
 
-Первый обязательный provider path — `custom` с OpenAI-compatible inference. `openrouter` и `anthropic` включаются в матрицу после проверки их штатных resolver. Остальные providers не получают ложной гарантии: новый provider требует mapping credentials в адаптере и теста; до этого — `UnsupportedProvider`. OAuth-входы, interactive login и облачная workload identity не входят в первоначальную матрицу.
+Первый обязательный provider path — `custom` с OpenAI-compatible inference. `openrouter` и `anthropic` включаются в матрицу после проверки их штатных resolver. Остальные providers не получают ложной гарантии: новый provider требует mapping credentials в адаптере и теста; до этого они отклоняются как `InvalidConfiguration`. OAuth-входы, interactive login и облачная workload identity не входят в первоначальную матрицу.
 
 Значения reasoning зависят от provider/model. CRD принимает строку, адаптер проверяет известные ограничения версии. Ни успешная валидация CR, ни Ready не означают, что удалённый provider поддерживает запрошенный effort или имеет доступную квоту.
 
@@ -66,6 +66,8 @@ Secret-значения не попадают в ConfigMap, CR/status, Events и
 | `telegram.groups.allowedChatIDs` | set of negative decimal strings, default `[]` | При enabled=true обязателен непустой список; при false список должен быть пуст. |
 
 В группе одновременно должны пройти проверку chat ID и sender ID. Включение группы не авторизует всех её участников. `guest_mode` выключен; пустые upstream lists не используются как эквивалент запрета. Способ DM-only для выбранного release должен пройти тесты text/command/media/callback; исследуемый непустой нечисловой marker в `allowed_chats` пока не доказан runtime-тестом.
+
+**Принятое пользователем ограничение v1:** в официальном v2026.9.14 старый pending inline picker может обработать callback разрешённого пользователя в запрещённой группе и изменить модель/reasoning. Обычные text/command/media проходят group gate; неавторизованные отправители по-прежнему отклоняются. Пользователь явно согласовал этот узкий дефект вместо patch upstream. В тестах он фиксируется отдельно и не маскируется обещанием полной блокировки любых callbacks.
 
 Адаптер задаёт Telegram как единственный активный внешний канал при старте, polling и выключенный profile multiplexing. Поведение фильтров и исходные источники: [mapping](../research/config-mapping.md).
 
@@ -200,13 +202,13 @@ NetworkPolicy additive, обработка NAT и node traffic зависит о
 
 Revision hash вычисляется по нормализованному Pod/config input и выбранным Secret values. Namespace/name/UID источников учитываются; resourceVersion и неиспользуемые Secret keys не учитываются. Digest используется как opaque revision, секретные values и промежуточные хеши не логируются. Metadata-only изменения CR/Secret не вызывают рестарт.
 
-Порядок reconcile: deletion → suspend → schema/semantic validation → dependencies → PVC identity → NetworkPolicy → revision inputs → StatefulSet → status/garbage collection. Создание Pod не ждёт Bound при delayed binding. Secret create/update/delete и изменения owned resources должны повторно ставить CR в очередь.
+Порядок reconcile: deletion → suspend → доступность желаемых credentials → schema/semantic validation → PVC identity → NetworkPolicy → revision inputs → StatefulSet → status/garbage collection. Перед сохранением прежнего workload на любом ошибочном пути отдельно проверяются credentials его применённых revisions, включая ещё существующий Pod старой revision, а также наличие, ownership и соответствие NetworkPolicy текущим сетевым требованиям. Создание Pod не ждёт Bound при delayed binding. Secret create/update/delete и изменения owned resources должны повторно ставить CR в очередь.
 
 При отсутствующем или пустом обязательном Secret: новая инсталляция ждёт; существующий workload останавливается, чтобы удаление credentials не оставляло старый credential snapshot работающим бесконечно. PVC сохраняется. Suspend и deletion должны работать независимо от отсутствующих Secrets.
 
-При семантически некорректном новом spec контроллер не применяет его частично и сохраняет последний корректный workload, показывая `Ready=False`, `ConfigurationReady=False` для новой generation. Инфраструктурные ошибки дают retry/backoff; устойчивые ошибки конфигурации ждут изменения входов. Автоматического отката версии/миграции пользовательской базы нет.
+При семантически некорректном новом spec контроллер не применяет его частично и сохраняет последний корректный workload, показывая `Ready=False`, `ConfigurationReady=False` для новой generation, только пока все его обязательные credentials доступны и NetworkPolicy соответствует текущим сетевым требованиям. Если policy отсутствует, удаляется, принадлежит другому владельцу, отличается от ожидаемой либо сетевые требования нельзя скомпилировать, workload останавливается с `NetworkPolicyReady=False`; PVC сохраняется. Валидный spec восстанавливает policy перед возобновлением запуска. Проверка не устраняет асинхронное окно между удалением policy и остановкой Pod. Удаление Secret, удаление/опустошение ключа или замена UID источника применённой revision останавливает workload даже при невалидном новом spec и изменённых desired refs. Для этого revision Secret хранит в metadata только namespace-local имена источников, ключи и UID, без значений credentials. Если прежняя revision не содержит этих данных, невалидный spec не позволяет безопасно сохранить её работающей; валидный spec восстанавливает metadata после проверки содержимого immutable snapshot без рестарта Pod. После остановки возобновление требует и доступных credentials, и валидного spec. Инфраструктурные ошибки дают retry/backoff; устойчивые ошибки конфигурации ждут изменения входов. Автоматического отката версии/миграции пользовательской базы нет.
 
-При нормальном rollout старый Pod останавливается до нового; никаких surge replicas. Force-delete Pod и сетевое разделение не дают абсолютного fencing и отдельно описываются в эксплуатации. Неисправный rollout после исправления/возврата spec должен восстанавливаться; если StatefulSet ждёт старый неготовый Pod, контроллер может штатно удалить только Pod старой revision с UID precondition, без force deletion.
+При нормальном rollout старый Pod останавливается до нового; никаких surge replicas. Force-delete Pod и сетевое разделение не дают абсолютного fencing и отдельно описываются в эксплуатации. Неисправный rollout после исправления/возврата spec должен восстанавливаться; если StatefulSet ждёт старый неготовый Pod, контроллер может штатно удалить принадлежащий ему Pod старой revision или с нарушенным управляемым securityContext/image с UID precondition, без force deletion. Совпадение revision annotation само по себе не подтверждает корректность фактического securityContext или image. Контроллер восстанавливает `RollingUpdate` с partition 0; эквивалентные Kubernetes defaults не вызывают повторных patches.
 
 ## 12. Status и health
 
@@ -214,7 +216,7 @@ Revision hash вычисляется по нормализованному Pod/c
 
 Conditions: `ConfigurationReady`, `DependenciesReady`, `StorageReady`, `NetworkPolicyReady`, `Ready`, `Suspended`, `Degraded`. У каждой condition собственный observedGeneration. Ready=true только для актуальной generation/revision при готовом Pod и успешно прошедшей readiness probe. Suspended=true всегда сопровождается Ready=false.
 
-Стабильные reasons включают InvalidConfiguration, UnsupportedVersion, UnsupportedProvider, DependencyNotFound, DependencyKeyMissing, ResourceConflict, StorageIdentityMismatch, StoragePending, ResizePending, BootstrapFailed, GatewayNotReady, RolloutInProgress, Suspended, Reconciled. Raw upstream stderr/error_message не копируются в status/Events.
+Стабильные reasons включают InvalidConfiguration, UnsupportedVersion, DependencyNotFound, DependencyKeyMissing, DependencyIdentityUnknown, ResourceConflict, StorageIdentityMismatch, StoragePending, ResizePending, ResizeUnsupported, GatewayNotReady, RolloutInProgress, Suspended, Reconciled и ReconcileError. Неподдерживаемый provider/API mode даёт InvalidConfiguration; startup/bootstrap failure оставляет gateway неготовым, а подробность остаётся в Pod logs. Raw upstream stderr/error_message не копируются в status/Events.
 
 Exec probes используют shipped probe script и штатный runtime status/heartbeat Hermes, не требуют web UI и не тратят model tokens. Проверяется живой PID с совпадающей process identity, heartbeat текущего процесса, gateway state и подключение Telegram. Точная схема состояния проверяется адаптером выбранного release.
 
@@ -228,7 +230,7 @@ Exec probes используют shipped probe script и штатный runtime 
 | --- | --- | --- |
 | A01 | Две инсталляции в разных namespaces | Разные workload/PVC/credentials, отсутствие cross-namespace refs. |
 | A02 | Разрешённый Telegram DM и персонализация | Ответ пользователю, сохранение имени/предпочтений, изменения SOUL/personality. |
-| A03 | Чужой sender и запрещённая группа | Text/commands/media/callback не запускают agent turn. |
+| A03 | Чужой sender и запрещённая группа | Неавторизованный sender отклоняется, text/commands/media запрещённой группы не запускают agent turn; старый inline callback разрешённого sender проверяется и документируется как принятое ограничение v1. |
 | A04 | Runtime смена модели, provider и reasoning | После same-Pod container restart CR восстановлен в прежней сессии; session ID/history неизменны. |
 | A05 | Pod replacement, CR update, Secret rotation | Сохранены SOUL, личный config, memory, skills, cron, workspace, история. |
 | A06 | Extra path удалён из CR | Удалено прежнее управляемое значение, пользовательский соседний ключ сохранён. |

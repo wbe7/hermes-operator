@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "release": "v2026.9.14",
+  "config": {
+    "model": {
+      "default": "declared-model",
+      "provider": "custom",
+      "base_url": "https://declared.invalid/v1",
+      "api_key": {
+        "credential": "model-api-key"
+      }
+    },
+    "agent": {
+      "reasoning_effort": "low"
+    },
+    "gateway": {
+      "multiplex_profiles": false
+    },
+    "terminal": {
+      "backend": "local",
+      "cwd": "/opt/data/workspace"
+    }
+  },
+  "env": {
+    "HERMES_MODEL_API_KEY": {
+      "credential": "model-api-key"
+    },
+    "CUSTOM_BASE_URL": "",
+    "GATEWAY_MULTIPLEX_PROFILES": "false"
+  },
+  "ownedPaths": [
+    [
+      "model",
+      "default"
+    ],
+    [
+      "model",
+      "provider"
+    ],
+    [
+      "model",
+      "base_url"
+    ],
+    [
+      "model",
+      "api_key"
+    ],
+    [
+      "agent",
+      "reasoning_effort"
+    ],
+    [
+      "gateway",
+      "multiplex_profiles"
+    ],
+    [
+      "terminal",
+      "backend"
+    ],
+    [
+      "terminal",
+      "cwd"
+    ]
+  ],
+  "ownedEnv": [
+    "HERMES_MODEL_API_KEY",
+    "CUSTOM_BASE_URL",
+    "GATEWAY_MULTIPLEX_PROFILES"
+  ]
+}

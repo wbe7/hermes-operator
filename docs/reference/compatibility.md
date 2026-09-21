@@ -1,0 +1,59 @@
+# Verified compatibility boundaries
+
+This is an evidence matrix, not a release support promise. The mandatory v1
+acceptance gate remains open; see [acceptance](../research/v1-acceptance.md).
+
+| Environment | Architecture | Verified scope |
+| --- | --- | --- |
+| k3s v1.34.7+k3s1, Flannel + k3s policy enforcement | amd64 | Native original gateway, controller source build, original-image startup restore, CSI WaitForFirstConsumer/expansion, generated policy. [Evidence](../research/berger-apps-preflight.md). |
+| kind v0.33.0 / Kubernetes v1.36.4 / Calico v3.32.2 | arm64 | Native dual-stack CNI probes; original-image runtime tests. Local Helm acceptance command below; run status in acceptance report. |
+
+No Kubernetes 1.35 or 1.37 runtime support is claimed. CI's amd64 reference-cluster
+job is executable coverage, not proof of a completed CI run. The Helm chart is
+built from the current source snapshot (chart version 0.1.0); record the source
+commit and actual image ID, not an unpublished release tag.
+
+Pinned original Hermes: `v2026.9.14`, multiarch image digest
+`sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`.
+The default derived image is `wbe7/hermes:v2026.9.14`, pinned multiarch digest
+`sha256:feecb5d71f4876758b61e83cf1527fa6cdbb4f7e8919808c5eed7daf5085640f`.
+Its browser, office, PDF and OCR coverage is recorded separately in
+[agent image validation](../research/agent-image-validation.md).
+The kind node and fixture images are digest-pinned in `hack/e2e-cluster.sh` and
+`test/e2e/fixtures/acceptance.py`; Calico artifacts have embedded SHA256 checks.
+Helm CLI used locally/CI is v3.15.0.
+
+Run `make test-e2e` with Docker, kind v0.33.0, kubectl, Helm and Python 3 available.
+The command creates/deletes only `hermes-operator-e2e`, refuses an existing cluster
+of that name, uses a temporary kubeconfig and never changes the global context.
+`E2E_DIR` selects retained evidence. `KIND` selects the CLI path.
+`E2E_OPERATOR_IMAGE` optionally selects an existing locally built image; its image
+ID and current source commit are recorded, but the harness cannot prove the
+selected image was built from that commit. Omit it for a fresh source build.
+
+The generated policy is tested over native IPv4 and IPv6 Pod/Service/node paths,
+DNS TCP/UDP, exact backend exceptions and public IPv4. Public IPv6 is required
+only when the unrestricted baseline has connectivity; unavailable baseline is
+recorded as not-run. Calico DNAT can allow a Service mapping to an allowed backend.
+Hosting-node probes prove only the known API listener, not all possible host paths.
+A local metadata-address stand-in uses exact-source DNAT inside the owned kind
+node on TCP 18080 to a controlled neighbor Pod. Kubernetes rejects link-local
+Service externalIPs, so no Service workaround is used. The fixture proves the
+controlled post-DNAT path plus policy classification, not real cloud metadata
+exposure; no host network namespace or real metadata service is touched.
+
+Live read-only snapshots use `make test-e2e-live`, with `E2E_LIVE_KUBECONFIG`,
+`E2E_LIVE_CONTEXT`, `E2E_LIVE_NAMESPACE` (prefix `hermes-operator-test`),
+`E2E_LIVE_HERMES`, `E2E_LIVE_DEDICATED=yes`, and `E2E_DIR`.
+Credentials must already be provisioned via a namespace-local Secret using
+protected environment/temporary files, never literals or logs. The harness does
+not retrieve Secret objects. Set `E2E_LIVE_RESTART=yes` only for an explicitly
+authorized same-Pod SIGTERM. It checks native restored configuration and read-only
+SQLite history-content digests, personal-config hashes, cron jobs and file
+snapshots without instantiating SessionStore against a live gateway. Operational
+cron heartbeat timestamps are excluded.
+It does not send Telegram messages or run a second token consumer.
+
+Dedicated Telegram sending is a separate explicit opt-in workflow: see
+[Telegram acceptance](telegram-acceptance.md). It uses isolated test-only client
+dependencies and never runs another bot token consumer.

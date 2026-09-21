@@ -1,0 +1,8 @@
+{
+  "name": "hermes-operator-browser-runtime",
+  "private": true,
+  "version": "2026.9.14",
+  "dependencies": {
+    "agent-browser": "0.26.0"
+  }
+}

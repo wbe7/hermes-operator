@@ -1,0 +1,11 @@
+model:
+  default: temporary
+  provider: custom
+  base_url: https://temporary.invalid/v1
+agent:
+  system_prompt: Speak briefly
+  reasoning_effort: high
+onboarding:
+  profile_build: true
+display:
+  personality: personal

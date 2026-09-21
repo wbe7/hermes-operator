@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/wbe7/hermes-operator
+  # Empty follows Chart.appVersion, including versions set by `helm package`.
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+leaderElection:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+networkPolicy:
+  enforcementConfirmed: false
+  # These arrays intentionally have no guessed defaults. Set all four for the cluster.
+  # podCIDRs: []
+  # serviceCIDRs: []
+  # nodeCIDRs: []
+  # infrastructureCIDRs: []
+  dns: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

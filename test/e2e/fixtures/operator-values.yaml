@@ -1,0 +1,16 @@
+# Reference-cluster values only. nodeCIDRs are discovered into a run overlay.
+image:
+  repository: hermes-operator
+  tag: e2e
+  pullPolicy: Never
+networkPolicy:
+  enforcementConfirmed: true
+  podCIDRs: [10.244.0.0/16, 'fd00:10:244::/56']
+  serviceCIDRs: [10.96.0.0/16, 'fd00:10:96::/112']
+  infrastructureCIDRs: []
+  dns:
+    podSelector:
+      namespaceLabels:
+        kubernetes.io/metadata.name: kube-system
+      podLabels:
+        k8s-app: kube-dns

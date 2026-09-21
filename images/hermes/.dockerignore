@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!requirements.lock
+!browser-use.lock
+!smoke.py
+!recalculate.py
+!package.json
+!package-lock.json

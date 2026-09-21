@@ -1,0 +1,12 @@
+agent:
+  system_prompt: Keep my personal prompt
+  reasoning_overrides:
+    locally-selected-model: low
+display:
+  personality: helpful-personal
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+compression:
+  personal_note: keep
+onboarding_complete: true

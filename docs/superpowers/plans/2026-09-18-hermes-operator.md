@@ -1,5 +1,7 @@
 # Hermes Operator v1 Implementation Plan
 
+Current status: implementation and executable harness are present and source-reviewed. See [reviewed implementation progress](../../research/build-verification.md#reviewed-implementation-progress) and the authoritative [acceptance ledger](../../research/v1-acceptance.md). This original execution checklist is historical; unchecked live release gates are not implied complete.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Выпустить самостоятельный Kubernetes-оператор, который по Hermes CR запускает оригинальный Hermes для Telegram, сохраняет личное состояние и восстанавливает управляемые настройки при каждом старте.
@@ -21,7 +23,7 @@
 - Default deletion policy — Retain. Delete разрешён только для PVC, созданного оператором и идентифицированного по UID.
 - Не входят в v1: web UI/HTTPRoute, другие мессенджеры, frontend/backend, backups/snapshots/restore, автоматическая миграция данных между PVC, HA одного агента, Kata/gVisor.
 - Целевая матрица Kubernetes: 1.35, 1.36, 1.37. Проверенность каждого варианта отмечается только после его испытания.
-- Не использовать существующий пользовательский кластер для испытаний. Все автоматические cluster tests создают явно названный временный кластер.
+- Для воспроизводимой CI использовать временный кластер. Пользователь отдельно разрешил отладку и deployment в berger-apps: только выделенные Hermes namespaces и ресурсы, без изменений существующих приложений.
 
 ## Порядок, структура и границы
 
@@ -360,4 +362,4 @@ PVC lifecycle — внутренний модуль контроллера, не
 
 ## Состояние исполнения
 
-На момент создания плана ни одна задача реализации не выполнена. Проверены согласованность проектных документов и первичные источники, но не runtime продукта. Чекбоксы обновляются только после исполнения соответствующего шага; publication в GitHub Issues/релиз и deployment не подменяются локальным созданием этого плана.
+Реализация начата после отдельного разрешения пользователя; отладка и deployment разрешены в berger-apps. Обнаруженная версия кластера — Kubernetes 1.34.7+k3s1, поэтому она добавлена к фактическим целям проверки без обновления кластера. Чекбоксы обновляются только после исполнения соответствующего шага; испытания продукта не подменяются проверкой проектной документации.
