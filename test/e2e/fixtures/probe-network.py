@@ -5,7 +5,10 @@ def get(kind,name,namespace=ns):return json.loads(subprocess.check_output(k+['-n
 def byfamily(ips):return {ipaddress.ip_address(x).version:x for x in ips}
 target=byfamily([x['ip'] for x in get('pod','network-target')['status']['podIPs']]);neighbor=byfamily([x['ip'] for x in get('pod','network-neighbor')['status']['podIPs']]);service=byfamily(get('service','network-target')['spec']['clusterIPs']);dns=byfamily(get('service','kube-dns','kube-system')['spec']['clusterIPs'])
 node=get('node',get('pod','network-client')['spec']['nodeName']);nodeips=byfamily([x['address'] for x in node['status']['addresses'] if x['type']=='InternalIP'])
-checks=[];udp=[]
+assert os.environ['E2E_CONTEXT']=='kind-hermes-operator-e2e'
+standin=json.loads((p/'metadata-fixture.json').read_text())
+assert standin['installed'] is True and standin['destination']=='169.254.169.254:18080'
+checks=[['metadataStandin','169.254.169.254',18080]];udp=[]
 for family in [4,6]:
  for name,host,port in [('target8080',target[family],8080),('target8081',target[family],8081),('neighbor8080',neighbor[family],8080),('service',service[family],8080),('dnsTCP',dns[family],53)]:checks.append([name+str(family),host,port])
  udp.append(['dnsUDP'+str(family),dns[family]])

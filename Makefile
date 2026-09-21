@@ -59,3 +59,10 @@ test-e2e:
 
 test-e2e-live:
 	python3 hack/e2e-live.py
+
+.PHONY: test-e2e-telegram test-e2e-harness
+test-e2e-telegram:
+	$${E2E_TELEGRAM_PYTHON:-python3} hack/e2e-telegram.py
+
+test-e2e-harness:
+	python3 -m unittest discover -s test/e2e/fixtures -p 'test_*.py'

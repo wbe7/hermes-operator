@@ -1,0 +1,6 @@
+# Install only into a separate test-client virtualenv; never the operator image.
+Telethon==1.45.0
+# Transitive versions verified with the pinned client in the isolated test venv.
+pyaes==1.6.1
+pyasn1==0.6.4
+rsa==4.9.1

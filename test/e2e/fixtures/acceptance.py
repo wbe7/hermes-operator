@@ -59,7 +59,7 @@ def lifecycle():
         secret('sample',ns)
         wait(lambda: get('statefulset','sample-hermes',ns), 'controller must create workload')
         wait(lambda: get('pod','sample-hermes-0',ns), 'actual pending Pod must exist')
-        result[ns]={'podUID':uid('pod','sample-hermes-0',ns),'pvcUID':uid('pvc','sample-hermes-data',ns)}
+        result[ns]={'crUID':uid('hermes','sample',ns),'podUID':uid('pod','sample-hermes-0',ns),'pvcUID':uid('pvc','sample-hermes-data',ns)}
     assert result[NS]['pvcUID'] != result['hermes-e2e-b']['pvcUID']
     patch('hermes','sample',{'suspend':True})
     k('-n',NS,'wait','--for=delete','pod/sample-hermes-0','--timeout=120s')
@@ -86,7 +86,7 @@ def lifecycle():
     k('apply','--server-side','-f',str(ROOT/'config/crd/bases/hermes.wbe7.github.io_hermes.yaml'))
     helm('upgrade')
     assert uid('pvc','sample-hermes-data') == result[NS]['pvcUID']
-    assert get('hermes','sample')['metadata']['uid']
+    assert uid('hermes','sample') == result[NS]['crUID']
     evidence('lifecycle',{'result':'passed','scope':'real controller, Pending workload; no native gateway Ready claim','identities':result})
 
 def consumer(claim):

@@ -14,7 +14,7 @@ success into native Hermes or Telegram acceptance.
 | A06 | passed | Real controller extraConfig add/remove produced new immutable inputs; original-image restore-only on the same actual PVC removed the previously managed compression threshold while preserving adjacent personal config and SOUL. `/tmp/hermes-operator-deploy/extra-removal.json`; no Telegram consumer needed for this bootstrap check. |
 | A07 | passed | Actual Berger created Retain/Delete/existing claims, marker preserved across expansion, no automatic adoption; `/tmp/hermes-operator-deploy/storage-lifecycle.json`. Local repeat also checks persistence after Helm uninstall. |
 | A08 | passed | Deleted/missing Secret and unsupported version confirmed by `controller-revocation.json`; offline corruption tests exist. Berger disposable original-image fixture proved corrupt YAML/SQLite and PVC permissions fail closed without reset and recover after repair using restore-only; `corrupt-home.json`. This does not claim fake-token Telegram Ready. Actual Telegram token conflict remains not-run (no second real-token consumer). |
-| A09 | not-run (partial passed) | Original-image UID10000/CapEff0/NoNewPrivs/no SA mount; generated policy on actual Berger Pod; reference Calico native dual-stack DNS/private/Service/node/exact exceptions. [Local evidence](local-dual-stack.md). External publicIPv6 unavailable in unrestricted baseline; metadata stand-in untested. |
+| A09 | not-run (partial passed) | Original-image UID10000/CapEff0/NoNewPrivs/no SA mount; generated policy on actual Berger Pod; reference Calico native dual-stack DNS/private/Service/node/exact exceptions. [Local evidence](local-dual-stack.md). External publicIPv6 unavailable in unrestricted baseline; controlled local metadata-address stand-in added in review fix; execution result recorded below. |
 | A10 | passed | Controller suspend/revocation/resume on preserved PVC; manager SIGTERM preserved gateway Pod UID and revision (`manager-restart.json`). Telegram cold-start outage recovered without restart storm; `telegram-outage-results.json`. Actual provider IP exception removed for 100 seconds: six idle health samples remained live/ready with zero restarts and same Pod/revision; rule restored and TCP recovered (`provider-outage.json`). No active user turn was simulated. |
 | A11 | passed | Berger CSI WaitForFirstConsumer + actual 1Gi→2Gi expansion retained marker; shrink admission rejection in schema tests. `storage-lifecycle.json`. Local kind storage class does not advertise expansion; no local expansion claim. |
 | A12 | not-run (local passed) | `make test-e2e` installs real Helm chart, explicitly applies CRD before upgrade, checks active Pending CR survival, deletes CR normally, uninstalls, checks retained PVC UID. Local install/upgrade/uninstall passed with active Pending CR; Ready native gateway across chart upgrade remains unverified. No automatic data-schema rollback claim. |
@@ -32,6 +32,9 @@ conversation content or live-state snapshots.
   generated-policy probes, controller and PVC lifecycle. Cleans up on failure.
 - `make test-runtime`: original-image native API/restore/filter tests, offline
   transport. This is not a real Telegram conversation.
+- `make test-e2e-telegram`: explicitly enabled dedicated user clients and native
+  transport/model/personalization checks; [prerequisites](../reference/telegram-acceptance.md).
+  No actual sends were executed during implementation.
 - `make test-e2e-live`: opt-in scoped read-only native snapshot, optional same-Pod
   SIGTERM; required environment and safety scope in [compatibility](../reference/compatibility.md).
 
@@ -57,3 +60,31 @@ no product code changed. Public IPv6 failed unrestricted baseline and is not-run
 `acceptance.json` contains every A01–A12 key for this local run only; it intentionally
 does not import prior Berger passes. `tests.txt`, `verdict.json`, `lifecycle.json`
 and `storage.json` are the corresponding executed evidence.
+
+## Review fix: controlled metadata path and executable Telegram clients
+
+`/tmp/hermes-e2e-review1-dnat` passed in 128.57 seconds (three local groups), with
+explicit Telegram skips and successful rule/cluster cleanup. Both clients reached
+`169.254.169.254:18080` before isolation; the unrestricted control remained reachable
+while the selected client timed out after deny, exact unrelated exception and
+restoration. `metadata-fixture.json` records exact owned container ID, two source
+Pod IPs, controlled backend and successful cleanup. This is an owned-kind-node
+post-DNAT path, not a real cloud metadata exposure test. The initial proposed
+Service externalIPs fixture was rejected by API admission and never probed;
+`/tmp/hermes-e2e-review1` preserves that failed setup and cleanup.
+
+The same run compared the original CR UID across actual Helm upgrade. Every local
+A01–A12 row now contains scope and evidence paths. Stronger live snapshots hash
+actual history content, unmanaged personal configuration and cron jobs, excluding
+operational ticker timestamps; offline fixture tests detect same-count message
+edits and personal/cron changes. Root's earlier read-only live helper invocation
+passed before this snapshot extension (`/tmp/hermes-e2e-live-final`); the extension
+has only synthetic-home verification so far.
+
+An executable dedicated Telethon workflow now covers DM, first contact,
+personalization, unauthorized identity, denied group text/command/media and
+optional allowed group. It requires explicit send opt-in, verified dedicated
+identities and actual transport/native evidence; no pass is inferred from a human
+checkbox. Seven offline harness tests passed, including no-send on wrong identity
+and rejection of silence without delivery/control evidence. No Telegram sending
+was executed; A02/A03 remain `not-run`. See [workflow](../reference/telegram-acceptance.md).

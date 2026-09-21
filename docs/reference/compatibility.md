@@ -32,7 +32,11 @@ DNS TCP/UDP, exact backend exceptions and public IPv4. Public IPv6 is required
 only when the unrestricted baseline has connectivity; unavailable baseline is
 recorded as not-run. Calico DNAT can allow a Service mapping to an allowed backend.
 Hosting-node probes prove only the known API listener, not all possible host paths.
-Metadata is not contacted; a dedicated metadata-address stand-in remains untested.
+A local metadata-address stand-in uses exact-source DNAT inside the owned kind
+node on TCP 18080 to a controlled neighbor Pod. Kubernetes rejects link-local
+Service externalIPs, so no Service workaround is used. The fixture proves the
+controlled post-DNAT path plus policy classification, not real cloud metadata
+exposure; no host network namespace or real metadata service is touched.
 
 Live read-only snapshots use `make test-e2e-live`, with `E2E_LIVE_KUBECONFIG`,
 `E2E_LIVE_CONTEXT`, `E2E_LIVE_NAMESPACE` (prefix `hermes-operator-test`),
@@ -41,5 +45,11 @@ Credentials must already be provisioned via a namespace-local Secret using
 protected environment/temporary files, never literals or logs. The harness does
 not retrieve Secret objects. Set `E2E_LIVE_RESTART=yes` only for an explicitly
 authorized same-Pod SIGTERM. It checks native restored configuration and read-only
-SQLite/file snapshots without instantiating SessionStore against a live gateway.
+SQLite history-content digests, personal-config hashes, cron jobs and file
+snapshots without instantiating SessionStore against a live gateway. Operational
+cron heartbeat timestamps are excluded.
 It does not send Telegram messages or run a second token consumer.
+
+Dedicated Telegram sending is a separate explicit opt-in workflow: see
+[Telegram acceptance](telegram-acceptance.md). It uses isolated test-only client
+dependencies and never runs another bot token consumer.
