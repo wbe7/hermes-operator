@@ -60,38 +60,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.27.1
       - uses: azure/setup-helm@v4
         with:
           version: v3.15.0
-      - uses: helm/kind-action@v1.12.0
+      - uses: azure/setup-kubectl@v4
         with:
-          version: v0.33.0
-          node_image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
-          kubectl_version: v1.36.4
-          cluster_name: hermes-operator-ci
-      - run: docker build -t hermes-operator:ci .
-      - run: kind load docker-image hermes-operator:ci --name hermes-operator-ci
-      - name: Install into the temporary cluster
+          version: v1.36.4
+      - name: Install pinned kind CLI
         run: |
-          kubectl apply --server-side -f config/crd/bases/hermes.wbe7.github.io_hermes.yaml
-          helm upgrade --install hermes-operator ./charts/hermes-operator \
-            --namespace hermes-system --create-namespace \
-            --set image.repository=hermes-operator \
-            --set image.tag=ci \
-            --set image.pullPolicy=Never \
-            --set networkPolicy.enforcementConfirmed=true \
-            --set 'networkPolicy.podCIDRs={10.244.0.0/16}' \
-            --set 'networkPolicy.serviceCIDRs={10.96.0.0/12}' \
-            --set 'networkPolicy.nodeCIDRs={172.18.0.0/16}' \
-            --set-json 'networkPolicy.infrastructureCIDRs=[]' \
-            --set 'networkPolicy.dns.resolverIPs={10.96.0.10}' \
-            --wait --timeout 2m
-          kubectl rollout status deployment/hermes-operator -n hermes-system --timeout=2m
-      - name: Validate installation examples against the temporary API server
-        run: |
-          kubectl apply -f examples/namespace-admin-rbac.yaml
-          kubectl apply --dry-run=server -f examples/hermes-secret.yaml
-          kubectl apply --dry-run=server \
-            -f examples/hermes-minimal.yaml \
-            -f examples/hermes-local-inference.yaml \
-            -f examples/hermes-existing-pvc.yaml
+          curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          curl -fsSLo /tmp/kind.sha256sum https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64.sha256sum
+          expected=$(cut -d ' ' -f 1 /tmp/kind.sha256sum)
+          echo "$expected  /tmp/kind" | sha256sum --check
+          chmod +x /tmp/kind
+      - name: Native Calico and Helm acceptance
+        run: KIND=/tmp/kind E2E_DIR=/tmp/hermes-e2e-ci make test-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-evidence
+          path: |
+            /tmp/hermes-e2e-ci/*.json
+            /tmp/hermes-e2e-ci/*.txt

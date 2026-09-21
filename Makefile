@@ -52,3 +52,10 @@ generate-runtime-assets:
 
 verify-runtime-assets:
 	python3 internal/workload/generate_assets.py --check
+
+.PHONY: test-e2e test-e2e-live
+test-e2e:
+	hack/e2e-cluster.sh
+
+test-e2e-live:
+	python3 hack/e2e-live.py
