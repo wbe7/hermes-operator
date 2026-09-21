@@ -108,3 +108,26 @@ message content, session files, raw gateway logs or database exports. Raw reject
 logs are inspected only in memory. The existing snapshot harness remains separate
 and uses read-only SQLite; neither helper constructs SessionStore against the
 running gateway.
+
+## Bounded manual test with one authorized chat
+
+When the user authorizes only one existing bot chat, use that exact chat through
+an authenticated Telegram client. Do not open other contacts/groups or start a
+second Bot API poller. The automated two-account harness above remains a
+separate workflow; a manual run is not a claim that it executed.
+
+Before sending, record a read-only native baseline. Use unique, harmless nonce
+prompts, verify the visible reply, correlate native Telegram user/chat identity
+and a new token-accounting delta for the declared model, then inspect actual
+personalization bytes. A claim in the reply alone is insufficient. After the
+turn finishes, snapshot personal files/history and verify them across the
+controlled restart before sending a recall prompt.
+
+A second Kubernetes installation can be checked sequentially with the same
+test-only credentials: suspend A and wait for its Pod to disappear, run B with a
+separate namespace/PVC, then stop B before resuming A. Compare effective settings
+and isolation markers. This does not establish simultaneous operation with
+independent credentials. Unauthorized identity and group cases remain `not-run`
+without their separately authorized prerequisites.
+
+Executed results and scope: [fresh smoke, 2026-09-21](../research/fresh-smoke-2026-09-21.md).

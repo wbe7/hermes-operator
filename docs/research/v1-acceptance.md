@@ -1,25 +1,27 @@
 # v1 acceptance ledger
 
-Latest source/deployment checkpoint: [final validation](final-validation.md).
+Latest release/deployment checkpoint: [operator 0.1.0 and Helm](release-0.1.0.md).
+Latest clean-home validation: [fresh smoke](fresh-smoke-2026-09-21.md).
+Earlier source review remains in [final validation](final-validation.md).
 
-Status: **not release-ready**. A row passes only when all its required subchecks
+Status: **experimental 0.1.0 published; full qualification incomplete**. A row passes only when all its required subchecks
 pass. The executable local suite deliberately does not turn synthetic fixture
 success into native Hermes or Telegram acceptance.
 
 | ID | Status | Executed evidence / remaining gate |
 | --- | --- | --- |
-| A01 | not-run (partial passed) | Berger controller reconciled separate namespaces and claims; local command `make test-e2e` checks two namespace identities. Two simultaneously Ready native installations with distinct dedicated credentials remain unverified. |
-| A02 | not-run | No real allowed-user DM or first-contact personalization observed. Requires dedicated human test identity, actual response, retained user preferences and SOUL/personality changes. |
+| A01 | not-run (partial passed) | Fresh Berger A→B→A run verified separate namespaces/CRs/PVCs, effective xhigh versus medium, no cross-installation marker, and persistence on return to A. Both became natively Ready sequentially with one shared test token; two simultaneously Ready installations with independent credentials remain unverified. [Fresh evidence](fresh-smoke-2026-09-21.md). |
+| A02 | passed | Fresh home had zero native messages/sessions. Authorized Telegram DM produced a visible nonce reply, matching native user/chat identity and new qwen38-27b token accounting. SOUL and persistent USER memory contained the onboarding nonce and preferences. [Fresh evidence](fresh-smoke-2026-09-21.md). |
 | A03 | not-run | Offline upstream filter tests exist (`make test-runtime`); actual unauthorized sender/group text/commands/media and accepted old-inline-callback limitation require dedicated Telegram identities. |
-| A04 | passed | Berger original gateway same-Pod SIGTERM, restart count +1, native model/provider/credential/xhigh restoration, original session ID/history. Corrected read-only verifier and 25 health samples: `/tmp/hermes-operator-deploy/health-restart-samples.json`, `verify-builder-state.py`; [detailed record](berger-apps-preflight.md). |
-| A05 | passed | Controller-managed replacement preserved original PVC/session and 333 personal file hashes. `controller-revocation.json`, corrected `verify-builder-state.py`, [detailed record](berger-apps-preflight.md). Real Telegram-created conversation not yet covered by this synthetic native session. |
+| A04 | passed | Fresh Telegram `/reasoning low --global` was natively confirmed, then same-Pod SIGTERM restored CR xhigh/model/provider/credential. All 340 personal file hashes, 20 real Telegram history messages and personal config survived; restart count 0→1. [Fresh evidence](fresh-smoke-2026-09-21.md); [earlier checks](berger-apps-preflight.md). |
+| A05 | passed | Fresh Pod deletion/recreation changed Pod UID and retained PVC, 340 personal file hashes, the native session and 20 real Telegram history messages. Post-restart Telegram reply recalled names, workspace marker and skill, with native model accounting. [Fresh evidence](fresh-smoke-2026-09-21.md); earlier controller-driven rollout evidence remains in [Berger preflight](berger-apps-preflight.md). |
 | A06 | passed | Real controller extraConfig add/remove produced new immutable inputs; original-image restore-only on the same actual PVC removed the previously managed compression threshold while preserving adjacent personal config and SOUL. `/tmp/hermes-operator-deploy/extra-removal.json`; no Telegram consumer needed for this bootstrap check. |
 | A07 | passed | Actual Berger created Retain/Delete/existing claims, marker preserved across expansion, no automatic adoption; `/tmp/hermes-operator-deploy/storage-lifecycle.json`. Local repeat also checks persistence after Helm uninstall. |
 | A08 | passed | Deleted/missing Secret and unsupported version confirmed by `controller-revocation.json`; offline corruption tests exist. Berger disposable original-image fixture proved corrupt YAML/SQLite and PVC permissions fail closed without reset and recover after repair using restore-only; `corrupt-home.json`. This does not claim fake-token Telegram Ready. Actual Telegram token conflict remains not-run (no second real-token consumer). |
 | A09 | not-run (partial passed) | Original-image UID10000/CapEff0/NoNewPrivs/no SA mount; generated policy on actual Berger Pod; reference Calico native dual-stack DNS/private/Service/node/exact exceptions. [Local evidence](local-dual-stack.md). External publicIPv6 unavailable in unrestricted baseline; controlled local metadata-address stand-in added in review fix; execution result recorded below. |
 | A10 | passed | Controller suspend/revocation/resume on preserved PVC; manager SIGTERM preserved gateway Pod UID and revision (`manager-restart.json`). Telegram cold-start outage recovered without restart storm; `telegram-outage-results.json`. Actual provider IP exception removed for 100 seconds: six idle health samples remained live/ready with zero restarts and same Pod/revision; rule restored and TCP recovered (`provider-outage.json`). No active user turn was simulated. |
 | A11 | passed | Berger CSI WaitForFirstConsumer + actual 1Gi→2Gi expansion retained marker; shrink admission rejection in schema tests. `storage-lifecycle.json`. Local kind storage class does not advertise expansion; no local expansion claim. |
-| A12 | not-run (local passed) | `make test-e2e` installs real Helm chart, explicitly applies CRD before upgrade, checks active Pending CR survival, deletes CR normally, uninstalls, checks retained PVC UID. Local install/upgrade/uninstall passed with active Pending CR; Ready native gateway across chart upgrade remains unverified. No automatic data-schema rollback claim. |
+| A12 | passed (bounded) | Local install/explicit CRD update/upgrade/uninstall and retained PVC checks passed with an active Pending CR. Berger Apps then installed published 0.1.0 via Helm and performed a same-version digest-pinning upgrade while its native gateway stayed Ready in the same Pod; 30 health samples and personal/history hashes passed. [Evidence](release-0.1.0.md). Cross-version operator/data-schema upgrades remain unverified; no automatic data rollback claim. |
 
 Raw Berger artifacts are local sanitized run records, not downloadable release
 attachments. Committed narrative evidence is [Berger preflight](berger-apps-preflight.md).
@@ -91,4 +93,6 @@ optional allowed group. It requires explicit send opt-in, verified dedicated
 identities and actual transport/native evidence; no pass is inferred from a human
 checkbox. Seven offline harness tests passed, including no-send on wrong identity
 and rejection of silence without delivery/control evidence. No Telegram sending
-was executed; A02/A03 remain `not-run`. See [workflow](../reference/telegram-acceptance.md).
+was executed at that implementation checkpoint. The subsequent bounded manual
+run closes A02; A03 remains `not-run`. See [workflow](../reference/telegram-acceptance.md)
+and [fresh smoke](fresh-smoke-2026-09-21.md).
