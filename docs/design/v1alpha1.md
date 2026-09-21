@@ -18,7 +18,7 @@
 
 `spec.version` обязателен: нет неявного `latest` и автоматического обновления Hermes. В составе оператора находится каталог поддерживаемых release → image digest → startup adapter. Неизвестная версия даёт `UnsupportedVersion` до запуска workload. В каталог поддержки версия попадает только после runtime-проверок.
 
-Первый кандидат — `v2026.9.14`, source revision `345cd2b057a452236de401d3534b8502a7465e8d`, официальный multiarch digest `sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`. Registry metadata проверены ранее, запуск ещё не проверен. См. [исследование](../research/upstream-and-isolation.md).
+Поддерживаемый v1 runtime — `v2026.9.14`, source revision `345cd2b057a452236de401d3534b8502a7465e8d`, официальный multiarch digest `sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294`. Локальные adapter/runtime tests на pinned image выполнены; полная кластерная приёмка остаётся Task 8. См. [runtime verification](../research/runtime-verification.md) и [исследование upstream](../research/upstream-and-isolation.md).
 
 | Поле | Тип / default | Контракт |
 | --- | --- | --- |
@@ -50,7 +50,7 @@
 | `reasoning.effort` | nonempty string = `xhigh` | Mapping: `agent.reasoning_effort`. Default явно выбран пользователем. Отсутствие возвращает xhigh, а не оставляет локально выбранный effort. |
 | `reasoning.overrides` | map model-name → effort, default `{}` | Mapping: `agent.reasoning_overrides`; явные per-model исключения. |
 
-Первый обязательный provider path — `custom` с OpenAI-compatible inference. `openrouter` и `anthropic` включаются в матрицу после проверки их штатных resolver. Остальные providers не получают ложной гарантии: новый provider требует mapping credentials в адаптере и теста; до этого — `UnsupportedProvider`. OAuth-входы, interactive login и облачная workload identity не входят в первоначальную матрицу.
+Первый обязательный provider path — `custom` с OpenAI-compatible inference. `openrouter` и `anthropic` включаются в матрицу после проверки их штатных resolver. Остальные providers не получают ложной гарантии: новый provider требует mapping credentials в адаптере и теста; до этого они отклоняются как `InvalidConfiguration`. OAuth-входы, interactive login и облачная workload identity не входят в первоначальную матрицу.
 
 Значения reasoning зависят от provider/model. CRD принимает строку, адаптер проверяет известные ограничения версии. Ни успешная валидация CR, ни Ready не означают, что удалённый provider поддерживает запрошенный effort или имеет доступную квоту.
 
@@ -216,7 +216,7 @@ Revision hash вычисляется по нормализованному Pod/c
 
 Conditions: `ConfigurationReady`, `DependenciesReady`, `StorageReady`, `NetworkPolicyReady`, `Ready`, `Suspended`, `Degraded`. У каждой condition собственный observedGeneration. Ready=true только для актуальной generation/revision при готовом Pod и успешно прошедшей readiness probe. Suspended=true всегда сопровождается Ready=false.
 
-Стабильные reasons включают InvalidConfiguration, UnsupportedVersion, UnsupportedProvider, DependencyNotFound, DependencyKeyMissing, ResourceConflict, StorageIdentityMismatch, StoragePending, ResizePending, BootstrapFailed, GatewayNotReady, RolloutInProgress, Suspended, Reconciled. Raw upstream stderr/error_message не копируются в status/Events.
+Стабильные reasons включают InvalidConfiguration, UnsupportedVersion, DependencyNotFound, DependencyKeyMissing, DependencyIdentityUnknown, ResourceConflict, StorageIdentityMismatch, StoragePending, ResizePending, ResizeUnsupported, GatewayNotReady, RolloutInProgress, Suspended, Reconciled и ReconcileError. Неподдерживаемый provider/API mode даёт InvalidConfiguration; startup/bootstrap failure оставляет gateway неготовым, а подробность остаётся в Pod logs. Raw upstream stderr/error_message не копируются в status/Events.
 
 Exec probes используют shipped probe script и штатный runtime status/heartbeat Hermes, не требуют web UI и не тратят model tokens. Проверяется живой PID с совпадающей process identity, heartbeat текущего процесса, gateway state и подключение Telegram. Точная схема состояния проверяется адаптером выбранного release.
 

@@ -2,7 +2,7 @@
 
 Проект самостоятельного Kubernetes-оператора для декларативного запуска [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-Требования согласованы, спецификация первой версии и план реализации подготовлены. Реализации контроллера, CRD и установочного пакета ещё нет; контейнерные и кластерные испытания ещё не выполнялись.
+Репозиторий содержит API `v1alpha1`, контроллер, Helm chart, runtime adapter и проверяемые примеры. Публикация первого release image и полная кластерная приёмка выполняются отдельно; наличие исходников не означает, что публичный tag уже опубликован.
 
 ## Согласованный первый релиз
 
@@ -19,6 +19,24 @@
 - Стандартные ограничения привилегий Kubernetes и NetworkPolicy; публичный интернет открыт, внутренние назначения требуют явных исключений по IP.
 - Автоматические backups/snapshots и восстановление не входят в первую версию; к ним вернутся отдельно.
 
+## Быстрый старт
+
+Начните с [руководства по установке](docs/guides/install.md). Перед Helm install нужно указать реальные cluster CIDR/DNS и подтвердить NetworkPolicy enforcement. Затем используйте [Secret template](examples/hermes-secret.yaml) и один из проверяемых примеров:
+
+- [минимальная инсталляция](examples/hermes-minimal.yaml);
+- [local inference без model key](examples/hermes-local-inference.yaml);
+- [существующий PVC](examples/hermes-existing-pvc.yaml).
+
+API и defaults перечислены в [справочнике v1alpha1](docs/reference/hermes-v1alpha1.md). Ротация, storage и failed rollout описаны в [operations guide](docs/guides/operations.md), границы изоляции — в [security guide](docs/guides/security.md), сохранение пользовательской настройки — в [personalization guide](docs/guides/personalization.md).
+
+Для разработки:
+
+```bash
+make test-unit test-envtest test-runtime lint-chart verify-docs verify-generated
+```
+
+`test-runtime` требует заранее загруженный официальный Hermes image по digest. `test-envtest` использует временный API server, а не live cluster.
+
 ## Документация проектирования
 
 - [Термины](CONTEXT.md).
@@ -26,7 +44,7 @@
 - [Спецификация API v1alpha1 и критерии приёмки](docs/design/v1alpha1.md).
 - [Установка, Helm, RBAC и эксплуатационные границы](docs/design/deployment.md).
 - [План реализации: восемь проверяемых этапов](docs/superpowers/plans/2026-09-18-hermes-operator.md).
-- Проекты примеров CR: [минимальный](docs/design/examples/hermes-minimal.yaml), [локальный inference](docs/design/examples/hermes-local-inference.yaml), [существующий PVC](docs/design/examples/hermes-existing-pvc.yaml). Они станут применяемыми после реализации CRD.
+- История проектов примеров: [минимальный](docs/design/examples/hermes-minimal.yaml), [локальный inference](docs/design/examples/hermes-local-inference.yaml), [существующий PVC](docs/design/examples/hermes-existing-pvc.yaml). Применяемые проверяемые копии находятся в `examples/`.
 - [Управление конфигурацией](docs/adr/0001-declarative-configuration-authority.md).
 - [Оригинальный upstream и границы изоляции](docs/adr/0002-upstream-and-security-boundary.md).
 - [Основные поля CR и дополнительные настройки Hermes](docs/adr/0003-typed-core-and-upstream-config.md).

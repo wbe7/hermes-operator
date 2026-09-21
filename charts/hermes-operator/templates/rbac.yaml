@@ -1,0 +1,29 @@
+{{ .Files.Get "files/role.yaml" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hermes-operator
+subjects:
+  - kind: ServiceAccount
+    name: hermes-operator
+    namespace: {{ .Release.Namespace }}
+---
+{{ .Files.Get "files/leader-election-role.yaml" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-operator-leader-election
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hermes-operator-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: hermes-operator
+    namespace: {{ .Release.Namespace }}

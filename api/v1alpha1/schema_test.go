@@ -174,7 +174,7 @@ func TestHermesAdmission(t *testing.T) {
 
 	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml"} {
 		t.Run(filename, func(t *testing.T) {
-			data, err := os.ReadFile(filepath.Join(root, "docs", "design", "examples", filename))
+			data, err := os.ReadFile(filepath.Join(root, "examples", filename))
 			if err != nil {
 				t.Fatal(err)
 			}

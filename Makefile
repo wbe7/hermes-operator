@@ -7,7 +7,7 @@ SETUP_ENVTEST_VERSION := v0.0.0-20260125163108-a19ec76a3c5d
 SETUP_ENVTEST := $(LOCALBIN)/setup-envtest-$(SETUP_ENVTEST_VERSION)
 ENVTEST_K8S_VERSION := 1.34.1
 
-.PHONY: generate manifests test-unit test-envtest test-runtime verify-generated tools
+.PHONY: generate manifests test-unit test-envtest test-runtime lint-chart verify-docs verify-generated tools
 
 tools: $(CONTROLLER_GEN) $(SETUP_ENVTEST)
 
@@ -38,15 +38,13 @@ test-runtime:
 	test/runtime/run.sh
 
 verify-generated: verify-runtime-assets $(CONTROLLER_GEN)
-	@set -eu; before=$$(mktemp); after=$$(mktemp); \
-	trap 'rm -f "$$before" "$$after"' EXIT; \
-	find api -name 'zz_generated.deepcopy.go' -type f -print; \
-	find api -name 'zz_generated.deepcopy.go' -type f -print0 | sort -z | xargs -0 shasum > "$$before"; \
-	find config -type f -print0 | sort -z | xargs -0 shasum >> "$$before"; \
-	$(MAKE) generate manifests >/dev/null; \
-	find api -name 'zz_generated.deepcopy.go' -type f -print0 | sort -z | xargs -0 shasum > "$$after"; \
-	find config -type f -print0 | sort -z | xargs -0 shasum >> "$$after"; \
-	diff -u "$$before" "$$after"
+	CONTROLLER_GEN=$(CONTROLLER_GEN) hack/verify-generated.sh
+
+lint-chart:
+	hack/test-chart.sh
+
+verify-docs:
+	python3 hack/verify-docs.py
 
 .PHONY: generate-runtime-assets verify-runtime-assets
 generate-runtime-assets:
