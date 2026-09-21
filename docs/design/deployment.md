@@ -1,6 +1,6 @@
 # Контракт установки и эксплуатации v1
 
-Статус: установочный пакет и команды реализованы в исходниках. Публичный operator image ещё не опубликован; полная кластерная приёмка Task 8 остаётся release gate.
+Статус: экспериментальный operator/chart `0.1.0` опубликован, Berger Apps переведён на Helm. [Текущая установка](../guides/install.md), [доказательства](../research/release-0.1.0.md) и [оставшаяся приёмка](../research/v1-acceptance.md) описаны отдельно.
 
 ## Поддерживаемое окружение
 
@@ -13,7 +13,7 @@
 
 ## Helm package
 
-Планируемый путь — `charts/hermes-operator`. Chart устанавливает Deployment оператора, ServiceAccount, cluster-wide RBAC, namespaced Lease RBAC для leader election и ConfigMap сетевых параметров. CRD поставляется отдельно в `config/crd/bases/hermes.wbe7.github.io_hermes.yaml`, а также включается в `crds/` chart для первого install.
+Исходники chart — `charts/hermes-operator`; опубликованный пакет — `oci://ghcr.io/wbe7/charts/hermes-operator`. Chart устанавливает Deployment оператора, ServiceAccount, cluster-wide RBAC, namespaced Lease RBAC для leader election и ConfigMap сетевых параметров. CRD поставляется отдельно в `config/crd/bases/hermes.wbe7.github.io_hermes.yaml`, а также включается в `crds/` chart для первого install.
 
 Defaults оператора: одна реплика, leader election включён, requests cpu=100m/memory=128Mi, limits cpu=500m/memory=512Mi. Health endpoints доступны kubelet, metrics по умолчанию не публикуются через Service/Ingress. Для самого контроллера — non-root, drop ALL, seccomp RuntimeDefault, read-only root filesystem. Ему нужен собственный ServiceAccount token.
 
@@ -69,15 +69,7 @@ RBAC controller не включает cluster-admin, изменение Nodes, e
 ## Последовательность установки
 
 1. Проверить CNI, storage class и реальные CIDR/DNS; подготовить values.
-2. Установить CRD и оператор в отдельный namespace:
-
-```bash
-kubectl apply --server-side -f config/crd/bases/hermes.wbe7.github.io_hermes.yaml
-helm upgrade --install hermes-operator ./charts/hermes-operator \
-  --namespace hermes-system --create-namespace \
-  --values operator-values.yaml
-kubectl rollout status deployment/hermes-operator -n hermes-system
-```
+2. Установить CRD выбранного релиза и опубликованный OCI chart в отдельный namespace по [руководству установки](../guides/install.md). Оно содержит проверку контрольных сумм, закрепление версии/digest и команды upgrade. Локальный chart применяется для разработки.
 
 3. Администратору создать namespace инсталляции и выделенный Secret. Получение Telegram bot token и model key — внешняя операция; оператор не генерирует эти значения.
 4. Создать Hermes CR из примера и проверить его Conditions. Missing dependency диагностируется до запуска.

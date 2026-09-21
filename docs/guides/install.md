@@ -2,7 +2,7 @@
 
 ## Предварительные условия
 
-- Kubernetes 1.34 или новее и рабочий default/выбранный StorageClass.
+- Kubernetes, удовлетворяющий ограничению chart `>=1.34.0-0`, и рабочий default/выбранный StorageClass. Фактически проверенные версии и границы перечислены в [compatibility](../reference/compatibility.md); ограничение chart не обещает проверку каждой новой версии.
 - CNI, который реально применяет ingress и egress NetworkPolicy для всех используемых IP families.
 - Реальные Pod, Service, node и infrastructure CIDR, а также DNS selector и/или точные resolver IP. Хотя бы одна DNS-форма обязательна; каждое указанное направление нужно проверить.
 - Доступ узлов к registry, Telegram и выбранному inference endpoint.
@@ -27,18 +27,68 @@ networkPolicy:
 
 `podSelector` и `resolverIPs` можно использовать вместе, например для Pod DNS и NodeLocal resolver. Оператор разрешает этим destinations только TCP/UDP 53; он не обнаруживает DNS автоматически и не открывает всю private-сеть.
 
-Установите или обновите CRD явно, затем chart:
+Сохраните выбранные значения в `operator-values.yaml`. Установите одну копию
+cluster-wide оператора на кластер. Релиз `0.1.0` экспериментальный; артефакты
+публичны, отдельный registry Secret не требуется.
+
+Скачайте файлы релиза, проверьте их контрольные суммы, затем примените CRD и chart:
 
 ```bash
-kubectl apply --server-side -f config/crd/bases/hermes.wbe7.github.io_hermes.yaml
-helm upgrade --install hermes-operator ./charts/hermes-operator \
-  --namespace hermes-system --create-namespace --values operator-values.yaml
+gh release download operator-v0.1.0 --repo wbe7/hermes-operator \
+  --dir hermes-operator-0.1.0
+(cd hermes-operator-0.1.0 && sha256sum --check SHA256SUMS)
+kubectl apply --server-side -f hermes-operator-0.1.0/hermes.crd.yaml
+helm upgrade --install hermes-operator oci://ghcr.io/wbe7/charts/hermes-operator \
+  --version 0.1.0 --namespace hermes-system --create-namespace \
+  --values operator-values.yaml --wait --timeout 5m
 kubectl rollout status deployment/hermes-operator -n hermes-system
 ```
 
-Helm устанавливает CRD из `crds/` при первом install, но Helm не обновляет уже установленный CRD автоматически. Поэтому явный `kubectl apply` обязателен перед upgrade.
+На macOS вместо `sha256sum --check` доступен `shasum -a 256 --check`.
+Все команды выполняются в выбранном kube-context; перед работой проверьте
+`kubectl config current-context` или задайте kubeconfig/context явно.
 
-До публикации release image соберите operator image из этого репозитория, загрузите его в доступный кластеру registry или локальный cluster image store и задайте `image.repository`, `image.tag`, `image.pullPolicy`. Публичного гарантированного operator tag документация пока не обещает.
+Helm устанавливает CRD из `crds/` при первом install, но не обновляет существующую
+CRD при `helm upgrade`. Перед каждым upgrade явно применяйте CRD **выбранной
+версии**, затем обновляйте chart с сохранёнными сетевыми values и image pin
+целевого релиза (порядок ниже). Не берите CRD из произвольного текущего `main`
+для старого релиза. CRD/CR/PVC не удаляются как способ обновления; совместимость
+схемы и возврата данных проверяется отдельно.
+
+Для закрепления проверенного multiarch image `0.1.0` добавьте в values:
+
+```yaml
+image:
+  tag: "0.1.0@sha256:6725c42f2bc0717dfdfc289fbeafae22402636d44bb4a4d5a12169444935991b"
+```
+
+**При обновлении на другой релиз:**
+
+1. Выберите опубликованный целевой релиз, проверьте его совместимость и скачайте
+   его CRD и контрольные суммы по схеме выше.
+2. До применения изменений обновите `image.tag` в `operator-values.yaml` на
+   tag и проверенный multiarch digest целевого образа. Сохраните сетевые параметры
+   кластера. Если намеренно используете тег из `Chart.appVersion` без digest pin,
+   явно задайте `image.tag: ""`. Непустой старый pin перекрывает `Chart.appVersion`:
+   одна смена `--version` у Helm оставит прежний образ оператора.
+3. Примените CRD целевого релиза, затем выполните `helm upgrade --install` с его
+   `--version` и обновлённым файлом `--values`. Не переносите старый image pin
+   через прежние values или `--reuse-values`.
+4. Дождитесь rollout и сравните фактический образ Deployment с выбранным
+   tag/digest. Успех команды Helm сам по себе не подтверждает смену образа.
+
+Проверка установленной версии и сохранённых overrides после install/upgrade:
+
+```bash
+helm history hermes-operator -n hermes-system
+helm get values hermes-operator -n hermes-system
+kubectl get deployment hermes-operator -n hermes-system \
+  -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+Для разработки можно использовать локальный `./charts/hermes-operator` и
+собственный operator image через `image.repository`, `image.tag` и
+`image.pullPolicy`. Это не требуется для установки опубликованного релиза.
 
 Создайте namespace/RBAC из [примера](../../examples/namespace-admin-rbac.yaml), замените значения в [Secret template](../../examples/hermes-secret.yaml), затем примените [минимальный Hermes](../../examples/hermes-minimal.yaml). Secret и CR должны находиться в одном namespace.
 
@@ -50,3 +100,16 @@ kubectl get hermes maria -n hermes-users -o yaml
 ```
 
 Перед использованием замените все `REPLACE_WITH_...`, endpoint, Telegram sender IDs и RBAC subject. Ни fixture, ни chart не содержат настоящих credentials.
+
+## Первое знакомство в Telegram
+
+Дождитесь `Ready=True` у CR и напишите боту с разрешённого `allowedUserIDs`.
+Первичная персонализация выполняется в диалоге: имя, стиль общения, SOUL, память
+и свои skills. Эти данные остаются на PVC; управляемая модель/reasoning
+восстанавливаются из CR перед каждым запуском.
+
+На чистой инсталляции Hermes может сообщить `No home channel is set for Telegram`.
+Это предложение выбрать чат для результатов cron и других уведомлений, а не
+ошибка запуска. Отправьте `/sethome` в нужном разрешённом личном чате или
+пропустите этот шаг. Выбор хранится в пользовательской конфигурации на PVC и
+сохраняется после рестарта, если администратор явно не управляет этим полем.

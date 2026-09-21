@@ -1,5 +1,7 @@
 # Итоговая проверка исходников и Berger Apps
 
+> Historical checkpoint before operator 0.1.0 publication. Current release and Helm evidence: [release 0.1.0](release-0.1.0.md); subsequent clean-home checks: [fresh smoke](fresh-smoke-2026-09-21.md).
+
 Дата: 2026-09-21. Проверенный и развёрнутый код: `089fddd06ee8f95ee9ae55d1c4dcaf403b7ac39f`. Исходники готовы к интеграции с указанными эксплуатационными границами; полная [приёмка release](v1-acceptance.md) остаётся открытой. Публичный image/tag самого оператора не опубликован. Последующая публикация расширенного образа агента описана в [отдельной проверке](agent-image-validation.md).
 
 ## Ревью и локальные проверки

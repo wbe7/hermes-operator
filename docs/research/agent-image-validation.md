@@ -1,5 +1,7 @@
 # Agent image validation — 2026-09-21
 
+> Historical checkpoint before operator 0.1.0 publication. Current release and Helm evidence: [release 0.1.0](release-0.1.0.md); subsequent clean-home checks: [fresh smoke](fresh-smoke-2026-09-21.md).
+
 Image: `wbe7/hermes:v2026.9.14`, Linux amd64 and arm64 manifest list
 `sha256:feecb5d71f4876758b61e83cf1527fa6cdbb4f7e8919808c5eed7daf5085640f`.
 Base: unchanged official image pinned in [Dockerfile](../../images/hermes/Dockerfile).
