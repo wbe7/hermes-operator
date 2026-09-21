@@ -8,14 +8,21 @@ from datetime import datetime, timezone
 
 @unittest.skipUnless(importlib.util.find_spec('gateway'), 'requires official Hermes image')
 class TelegramTests(unittest.IsolatedAsyncioTestCase):
-    async def test_all_handler_paths_apply_sender_and_chat_allowlists(self):
+    @classmethod
+    def setUpClass(cls):
+        # Load the native stack before asyncio starts timing a test task.
+        global Update, Message, Chat, User, Sticker, PlatformConfig, Platform
+        global SessionSource, GatewayAuthorizationMixin, TelegramAdapter
+        import gateway.run
+
         from telegram import Update, Message, Chat, User, Sticker
         from gateway.config import PlatformConfig, Platform
         from gateway.session import SessionSource
         from gateway.authz_mixin import GatewayAuthorizationMixin
         from plugins.platforms.telegram.adapter import TelegramAdapter
+    async def test_all_handler_paths_apply_sender_and_chat_allowlists(self):
         env={'TELEGRAM_ALLOWED_USERS':'123', 'TELEGRAM_GROUP_ALLOWED_USERS':'', 'TELEGRAM_GROUP_ALLOWED_CHATS':'', 'GATEWAY_ALLOWED_USERS':'', 'GATEWAY_ALLOW_ALL_USERS':'false', 'TELEGRAM_ALLOW_ALL_USERS':'false'}
-        with patch.dict(os.environ, env):
+        with patch.dict(os.environ, env), self.assertLogs(level="WARNING") as diagnostics:
             for groups in (False,True):
                 for user,chat,kind,expected in [(123,123,'private',1),(999,999,'private',0),(123,-999,'supergroup',0),(123,-456,'supergroup',int(groups)),(999,-456,'supergroup',0)]:
                     for handler in ('text','command','media','callback'):
@@ -46,3 +53,11 @@ class TelegramTests(unittest.IsolatedAsyncioTestCase):
                             # authorized sender bypasses allowed_chats. Strangers remain denied.
                             callback_expected = int(user == 123) if handler == 'callback' else expected
                             self.assertEqual(len(dispatch), callback_expected)
+        self.assertEqual(len(diagnostics.records), 7)
+        for record in diagnostics.records:
+            self.assertEqual(record.levelname, 'WARNING')
+            self.assertIn(record.getMessage(), {
+                '[Telegram] Blocked unauthorized user 999 in chat 999',
+                '[Telegram] Blocked unauthorized user 999 in chat -456',
+            })
+            self.assertIsNone(record.exc_info)

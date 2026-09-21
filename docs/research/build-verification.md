@@ -13,3 +13,9 @@ The requested development `.env` has mode 0600, is ignored by Git and is not tra
 No image, chart, Git branch or release was published by these checks. For current platform coverage and remaining gates, see [compatibility](../reference/compatibility.md) and [acceptance](v1-acceptance.md).
 
 The strengthened `make test-e2e-live` snapshot at Task 8 fix `f4e3a55` also ran successfully against the real Berger gateway in read-only mode. It compared the native selected credential inside the Pod and collected history-content, personal-config, cron and file hashes without changing gateway PID identity. `/tmp/hermes-e2e-live-enhanced/live-snapshot.json` records the scoped pass; the private state snapshot is not a release attachment. This invocation did not restart the agent or send Telegram messages.
+
+## Reviewed implementation progress
+
+Tasks 1–7 have implemented and reviewed API, configuration restoration, network/workload construction, reconciliation and packaging. Task 8 has an executable acceptance harness and recorded scoped local/ Berger results; full release qualification remains open in the [acceptance ledger](v1-acceptance.md). The original plan checklist is historical, not evidence that unexecuted gates passed.
+
+The consolidated F1–F8 review fixes were checked with Kubernetes 1.34.1 envtest API/controller/config/workload suites and 23 tests in the pinned original Hermes image. Covering regressions verify applied-source revocation on apply/preflight failures, corrupt dotenv byte retention and repair, live Pod identity/isolation drift, Service-safe CR names, isolated positive-limit admission, controlled authorization diagnostics and deprecated cwd cleanup. Native loading and the terminal config accessor resolve cwd to /opt/data/workspace without deprecated dotenv entries. Generated assets/schema and documentation checks pass. This source validation does not imply deployment of the fixes or close the remaining live release gates.

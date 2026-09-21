@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
 	"github.com/wbe7/hermes-operator/internal/runtimecatalog"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Version-specific exclusions supplement the exact leaves rendered below. Root
@@ -146,6 +147,12 @@ func walkExtra(h *v1.Hermes, value any, path []string) error {
 	return nil
 }
 func Validate(h *v1.Hermes, r runtimecatalog.Release) error {
+	for key, value := range h.Spec.Scheduling.NodeSelector {
+		if len(validation.IsQualifiedName(key)) != 0 || len(validation.IsValidLabelValue(value)) != 0 {
+			return invalid("spec.scheduling.nodeSelector", "invalid label key or value")
+		}
+	}
+
 	if h.Spec.Version != r.Version || r.Version != "v2026.9.14" {
 		return invalid("spec.version", "UnsupportedVersion")
 	}

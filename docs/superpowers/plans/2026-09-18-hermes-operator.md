@@ -1,5 +1,7 @@
 # Hermes Operator v1 Implementation Plan
 
+Current status: implementation and executable harness are present and source-reviewed. See [reviewed implementation progress](../../research/build-verification.md#reviewed-implementation-progress) and the authoritative [acceptance ledger](../../research/v1-acceptance.md). This original execution checklist is historical; unchecked live release gates are not implied complete.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Выпустить самостоятельный Kubernetes-оператор, который по Hermes CR запускает оригинальный Hermes для Telegram, сохраняет личное состояние и восстанавливает управляемые настройки при каждом старте.

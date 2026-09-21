@@ -77,9 +77,11 @@ The same run compared the original CR UID across actual Helm upgrade. Every loca
 A01–A12 row now contains scope and evidence paths. Stronger live snapshots hash
 actual history content, unmanaged personal configuration and cron jobs, excluding
 operational ticker timestamps; offline fixture tests detect same-count message
-edits and personal/cron changes. Root's earlier read-only live helper invocation
-passed before this snapshot extension (`/tmp/hermes-e2e-live-final`); the extension
-has only synthetic-home verification so far.
+edits and personal/cron changes. The enhanced read-only native loader and state snapshot check also passed on Berger
+(`/tmp/hermes-e2e-live-enhanced/live-snapshot.json`, Pod UID
+`c6b47bf9-2a8a-48ac-a3f5-febc51dce575`); see [build verification](build-verification.md).
+That scoped check did not restart the agent or send Telegram messages and does
+not close A02/A03 or the remaining release qualification gates.
 
 An executable dedicated Telethon workflow now covers DM, first contact,
 personalization, unauthorized identity, denied group text/command/media and

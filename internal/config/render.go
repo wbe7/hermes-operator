@@ -221,8 +221,6 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 		"GATEWAY_PROXY_URL":            "",
 		"GATEWAY_PROXY_KEY":            "",
 		"GATEWAY_RELAY_URL":            "",
-		"MESSAGING_CWD":                "/opt/data/workspace",
-		"TERMINAL_CWD":                 "/opt/data/workspace",
 		"TERMINAL_ENV":                 "local",
 	} {
 		doc.Env[k] = v

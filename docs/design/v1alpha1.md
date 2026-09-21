@@ -1,6 +1,6 @@
 # Hermes Operator: спецификация первой версии
 
-Дата: 2026-09-18. Статус: контракт для реализации после завершённого интервью. Это спецификация, а не объявление готового продукта: CRD, контроллер и испытания ещё предстоит реализовать.
+Дата: 2026-09-18. Статус: CRD, контроллер, runtime и исполняемый acceptance harness реализованы и прошли review исходников; полная release qualification остаётся открытой. Текущие результаты и незакрытые gates — в [acceptance ledger](../research/v1-acceptance.md).
 
 Продуктовые решения находятся в [интервью](interview.md), причины архитектурных границ — в [ADR](../adr/0001-declarative-configuration-authority.md). Этот документ фиксирует выбранные инженерные defaults и поведение API. Изменения, необходимые по результатам испытаний, отражаются здесь до публикации API. Работа по реализации разбита в [плане](../superpowers/plans/2026-09-18-hermes-operator.md).
 
@@ -28,7 +28,7 @@
 | `image.pullPolicy` | `IfNotPresent` / `Always`, default `IfNotPresent` | Workload всегда использует digest. |
 | `image.pullSecrets` | list of local names, default `[]` | Передаются как Kubernetes imagePullSecrets. |
 
-Для CR `maria`: StatefulSet и headless Service — `maria-hermes`; Pod — `maria-hermes-0`; созданный PVC — `maria-hermes-data`; ServiceAccount и NetworkPolicy — `maria-hermes`. Имена CR ограничены DNS label длиной 40 символов, чтобы сохранить запас для суффиксов и revision.
+Для CR `maria`: StatefulSet и headless Service — `maria-hermes`; Pod — `maria-hermes-0`; созданный PVC — `maria-hermes-data`; ServiceAccount и NetworkPolicy — `maria-hermes`. Имена CR ограничены DNS label длиной до 40 символов с начальной буквой a-z и без точек, чтобы сохранить запас для суффиксов и revision.
 
 Внутренние input bundles получают имя `<name>-hermes-input-<revision>`. Они имеют ownerReference на CR. Чужие одноимённые объекты не усыновляются и не перезаписываются: `ResourceConflict`. Исключения — только явно указанные Secret и existing PVC, которые остаются внешними.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
+	"github.com/wbe7/hermes-operator/internal/network"
 	"github.com/wbe7/hermes-operator/internal/workload"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -70,7 +71,7 @@ func (r *HermesReconciler) observePods(ctx context.Context, h *v1.Hermes, set *a
 		if !p.DeletionTimestamp.IsZero() {
 			continue
 		}
-		if p.Annotations[workload.RevisionAnnotation] != revision || !podSecurityMatches(set.Spec.Template.Spec, p.Spec) {
+		if p.Annotations[workload.RevisionAnnotation] != revision || p.Labels[network.InstallationUIDLabel] != string(h.UID) || !podIsolationMatches(set.Spec.Template.Spec, p.Spec) {
 			if err = r.deleteUID(ctx, p); err != nil {
 				return err
 			}

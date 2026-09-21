@@ -38,6 +38,11 @@ func TestDefaultRefsAndRender(t *testing.T) {
 	if json.Unmarshal(b.JSON, &doc) != nil {
 		t.Fatal("invalid JSON")
 	}
+	for _, key := range []string{"MESSAGING_CWD", "TERMINAL_CWD"} {
+		if _, present := doc["env"].(map[string]any)[key]; present {
+			t.Fatalf("deprecated cwd variable emitted: %s", key)
+		}
+	}
 	cfg := doc["config"].(map[string]any)
 	agent := cfg["agent"].(map[string]any)
 	if agent["reasoning_effort"] != "xhigh" || len(agent["reasoning_overrides"].(map[string]any)) != 0 {

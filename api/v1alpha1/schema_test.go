@@ -136,7 +136,7 @@ func TestHermesAdmission(t *testing.T) {
 			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"memory": "-1Mi"}, "limits": map[string]any{"memory": "2Gi"}}
 		},
 		"zero-limit": func(o map[string]any) {
-			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"cpu": "0"}, "limits": map[string]any{"cpu": "0"}}
+			o["spec"].(map[string]any)["resources"] = map[string]any{"requests": map[string]any{"cpu": "100m", "memory": "512Mi"}, "limits": map[string]any{"example.com/device": "0"}}
 		},
 		"negative-limit": func(o map[string]any) {
 			o["spec"].(map[string]any)["resources"] = map[string]any{"limits": map[string]any{"memory": "-1Mi"}}
@@ -144,10 +144,36 @@ func TestHermesAdmission(t *testing.T) {
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
-			if err := create(t, name, mutate, true); err == nil || !apierrors.IsInvalid(err) {
+			err := create(t, name, mutate, true)
+			if err == nil || !apierrors.IsInvalid(err) {
 				t.Fatalf("expected Invalid, got %v", err)
 			}
+			if name == "zero-limit" {
+				status := err.(apierrors.APIStatus).Status()
+				found := false
+				for _, cause := range status.Details.Causes {
+					if cause.Field == "spec.resources" && strings.Contains(cause.Message, "resource limits must be positive") {
+						found = true
+					}
+					if strings.Contains(cause.Message, "resource requests must be positive") {
+						t.Fatalf("limit fixture also failed request validation: %v", err)
+					}
+				}
+				if !found {
+					t.Fatalf("positive-limit admission cause missing: %v", err)
+				}
+			}
 		})
+	}
+	for _, name := range []string{"alice.team", "1alice", strings.Repeat("a", 41)} {
+		if err := create(t, name, func(map[string]any) {}, true); !apierrors.IsInvalid(err) {
+			t.Fatalf("unsafe derived Service name %q accepted: %v", name, err)
+		}
+	}
+	for _, name := range []string{"a", "alice-team1", strings.Repeat("a", 40)} {
+		if err := create(t, name, func(map[string]any) {}, true); err != nil {
+			t.Fatalf("valid boundary name %q rejected: %v", name, err)
+		}
 	}
 	strictCases := map[string]func(map[string]any){
 		"cross-namespace-ref": func(o map[string]any) {

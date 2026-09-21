@@ -12,6 +12,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=hms
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.size() <= 40",message="metadata.name must be at most 40 characters"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be a DNS label starting with a letter"
 type Hermes struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

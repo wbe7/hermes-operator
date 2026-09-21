@@ -95,7 +95,7 @@ func TestReadyRequiresRunningCurrentPod(t *testing.T) {
 	r, h := unit(t, true)
 	runReconcile(t, r, h)
 	set := sts(t, r, h)
-	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Annotations: map[string]string{"hermes.wbe7.github.io/revision": h.Status.AppliedRevision}, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec, Status: corev1.PodStatus{Phase: corev1.PodFailed, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Annotations: map[string]string{"hermes.wbe7.github.io/revision": h.Status.AppliedRevision}, Labels: set.Spec.Template.Labels, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec, Status: corev1.PodStatus{Phase: corev1.PodFailed, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestRolloutRecoveryRetainsTerminatingPodInputs(t *testing.T) {
 	set := sts(t, r, h)
 	oldRevision := h.Status.AppliedRevision
 	oldConfig := set.Spec.Template.Spec.Volumes[2].ConfigMap.Name
-	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec}
+	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, Labels: set.Spec.Template.Labels, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec}
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestSecretUIDAndMissingKey(t *testing.T) {
 }
 
 func TestInvalidSpecCannotPreserveRevokedCredentials(t *testing.T) {
-	for _, invalid := range []string{"unsupported-version", "invalid-provider", "invalid-resources"} {
+	for _, invalid := range []string{"unsupported-version", "invalid-provider", "invalid-resources", "invalid-node-selector"} {
 		for _, revocation := range []string{"secret", "key"} {
 			for _, changedRefs := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/changed-refs=%t", invalid, revocation, changedRefs), func(t *testing.T) {
@@ -213,6 +213,8 @@ func TestInvalidSpecCannotPreserveRevokedCredentials(t *testing.T) {
 						h.Spec.Version = "unsupported"
 					case "invalid-provider":
 						h.Spec.Model.Provider = "unsupported"
+					case "invalid-node-selector":
+						h.Spec.Scheduling.NodeSelector = map[string]string{"invalid key": "x"}
 					case "invalid-resources":
 						h.Spec.Resources.Requests = v1.ResourceList{corev1.ResourceCPU: resource.MustParse("10")}
 					}
@@ -291,7 +293,7 @@ func TestInvalidSpecChecksDependencyOfTerminatingOldPod(t *testing.T) {
 	r, h := unit(t, true)
 	runReconcile(t, r, h)
 	set := sts(t, r, h)
-	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec}
+	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, Labels: set.Spec.Template.Labels, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: set.Spec.Template.Spec}
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +353,7 @@ func TestSameRevisionUnsafePodIsStopped(t *testing.T) {
 	r, h := unit(t, true)
 	runReconcile(t, r, h)
 	set := sts(t, r, h)
-	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: *set.Spec.Template.Spec.DeepCopy(), Status: corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Finalizers: []string{"test/hold"}, Annotations: set.Spec.Template.Annotations, Labels: set.Spec.Template.Labels, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: *set.Spec.Template.Spec.DeepCopy(), Status: corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
 	p.Spec.Containers[0].SecurityContext.RunAsUser = ptr.To(int64(0))
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
@@ -369,11 +371,18 @@ func TestLivePodSecurityDefaultsRemainReady(t *testing.T) {
 	r, h := unit(t, true)
 	runReconcile(t, r, h)
 	set := sts(t, r, h)
-	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Annotations: set.Spec.Template.Annotations, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: *set.Spec.Template.Spec.DeepCopy(), Status: corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	p := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: set.Name + "-0", Namespace: h.Namespace, Annotations: set.Spec.Template.Annotations, Labels: set.Spec.Template.Labels, OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(set, appsv1.SchemeGroupVersion.WithKind("StatefulSet"))}}, Spec: *set.Spec.Template.Spec.DeepCopy(), Status: corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
 	p.Spec.Containers[0].SecurityContext.Privileged = ptr.To(false)
 	p.Spec.Containers[0].SecurityContext.ProcMount = ptr.To(corev1.DefaultProcMount)
 	p.Spec.SecurityContext.SupplementalGroupsPolicy = ptr.To(corev1.SupplementalGroupsPolicyMerge)
 	p.Spec.NodeName = "scheduled-node"
+	p.Spec.DNSPolicy = corev1.DNSClusterFirst
+	p.Spec.RestartPolicy = corev1.RestartPolicyAlways
+	p.Spec.SchedulerName = corev1.DefaultSchedulerName
+	p.Spec.Tolerations = append(p.Spec.Tolerations, corev1.Toleration{Key: "node.kubernetes.io/not-ready", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute, TolerationSeconds: ptr.To(int64(300))})
+	p.Spec.Containers[0].TerminationMessagePath = corev1.TerminationMessagePathDefault
+	p.Labels["controller-revision-hash"] = "server-default"
+	p.Labels["statefulset.kubernetes.io/pod-name"] = p.Name
 	if err := r.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}

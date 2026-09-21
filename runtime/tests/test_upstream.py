@@ -59,11 +59,12 @@ class UpstreamSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home=Path(directory)
             literal='prefix${HOME}${HERMES_MISSING_TEST_VARIABLE}suffix'
-            (home/'.env').write_text("UNRELATED='"+literal+"'\nHOME='/tmp/wrong'\nHERMES_HOME='/tmp/wrong'\nHERMES_PROFILE='wrong'\nCUSTOM_BASE_URL='https://old.invalid/v1'\n")
+            (home/'.env').write_text("UNRELATED='"+literal+"'\nHOME='/tmp/wrong'\nHERMES_HOME='/tmp/wrong'\nHERMES_PROFILE='wrong'\nCUSTOM_BASE_URL='https://old.invalid/v1'\nMESSAGING_CWD='/stale'\nTERMINAL_CWD='/stale'\n")
             legacy={'multiplex_profiles':True,'platforms':{'telegram':{'channel_overrides':{'123':{'model':'legacy','provider':'legacy','system_prompt':'keep'}}}}}
             legacy['platforms']['telegram'].update(token='old-test-token', extra={'allow_from':['999'], 'group_allow_from':['999'], 'allowed_chats':['-999']})
             (home/'gateway.json').write_text(json.dumps(legacy))
             config={'model':{'provider':'custom','default':'declared','base_url':'https://declared.invalid/v1','api_key':{'credential':'model-api-key'}},'gateway':{'multiplex_profiles':False},'agent':{'reasoning_effort':'xhigh','reasoning_overrides':{}}}
+            config['terminal']={'cwd':'/opt/data/workspace'}
             config['gateway']['platforms']={'telegram':{'enabled':True,'extra':{'allow_from':['123'],'group_allow_from':['123'],'allowed_chats':['__operator_dm_only__']}}}
             env={'HERMES_MODEL_API_KEY':{'credential':'model-api-key'},'CUSTOM_BASE_URL':'','TELEGRAM_BOT_TOKEN':{'credential':'telegram-bot-token'}}
             bundle={'schema':1,'release':'v2026.9.14','config':config,'env':env,'ownedPaths':[list(p[:-1]) if p[-1]=='credential' else list(p) for p,_ in leaves(config)],'ownedEnv':list(env)}
@@ -72,6 +73,7 @@ class UpstreamSessionTests(unittest.TestCase):
 from pathlib import Path
 from bootstrap import load_runtime_environment
 home=Path(sys.argv[1]); load_runtime_environment(home)
+assert 'MESSAGING_CWD' not in os.environ and 'TERMINAL_CWD' not in os.environ
 from hermes_cli.env_loader import load_hermes_dotenv
 load_hermes_dotenv()
 from hermes_cli.config import load_config
@@ -82,6 +84,13 @@ assert r['api_key']=='prefix${HOME}${HERMES_MISSING_TEST_VARIABLE}suffix'
 assert os.environ['UNRELATED']=='prefix${HOME}${HERMES_MISSING_TEST_VARIABLE}suffix'
 assert os.environ['HERMES_HOME']==str(home) and os.environ['HOME']==str(home)
 assert 'HERMES_PROFILE' not in os.environ
+assert c['terminal']['cwd']=='/opt/data/workspace'
+# Native config loading bridges terminal.cwd into the tool environment itself.
+assert os.environ.get('TERMINAL_CWD')=='/opt/data/workspace'
+from hermes_cli.config import warn_deprecated_cwd_env_vars
+warn_deprecated_cwd_env_vars()
+from tools.terminal_tool import _get_env_config
+assert _get_env_config()['cwd']=='/opt/data/workspace'
 assert c['model']['default']=='declared' and r['base_url']=='https://declared.invalid/v1'
 g=load_gateway_config(); assert not g.multiplex_profiles
 t=g.platforms[Platform.TELEGRAM]
@@ -93,3 +102,4 @@ assert channel.model is None and channel.provider is None and channel.system_pro
 '''
             result=subprocess.run([sys.executable,'-c',code,directory],env={**os.environ,'HERMES_HOME':directory},capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr.decode())
+            self.assertNotIn('Deprecated .env settings', result.stderr.decode())

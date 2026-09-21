@@ -1,6 +1,6 @@
 # Hermes API v1alpha1
 
-`Hermes` — namespaced resource. CR, исходные Secrets, PVC и созданный workload всегда находятся в одном namespace. Имя CR ограничено 40 символами. Единственная проверенная runtime-комбинация v1: Hermes `v2026.9.14`, provider `custom`, API mode `chat_completions`. Другие provider/mode отвергаются до запуска. Значение reasoning по умолчанию — `xhigh`.
+`Hermes` — namespaced resource. CR, исходные Secrets, PVC и созданный workload всегда находятся в одном namespace. Имя CR — DNS label длиной до 40 символов: начинается с латинской буквы нижнего регистра, содержит только a-z, 0-9, дефис, заканчивается буквой или цифрой. Точки запрещены, чтобы производное имя Service было валидно. Единственная проверенная runtime-комбинация v1: Hermes `v2026.9.14`, provider `custom`, API mode `chat_completions`. Другие provider/mode отвергаются до запуска. Значение reasoning по умолчанию — `xhigh`.
 
 ## Поля spec
 

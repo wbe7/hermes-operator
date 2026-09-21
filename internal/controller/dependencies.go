@@ -188,15 +188,14 @@ func revisionSourceNames(obj client.Object) []string {
 	return names
 }
 
-// Invalid desired configuration may preserve a workload only while all of its
-// applied dependencies still exist. The Pod may be on an older revision than
-// the StatefulSet, so inspect both; source values never enter this metadata.
+// The reconcile exit guard checks applied dependencies for this and every other
+// failure path, including failures after a partial apply.
 func (r *HermesReconciler) configurationFailed(ctx context.Context, h *v1.Hermes, configurationErr error) (ctrl.Result, error) {
-	if err := r.checkAppliedDependencies(ctx, h); err != nil {
-		return r.stopAndFail(ctx, h, "DependenciesReady", err)
-	}
 	return r.failed(ctx, h, "ConfigurationReady", configurationErr)
 }
+
+// The Pod may be on an older revision than the StatefulSet, so inspect both;
+// source values never enter this metadata.
 func (r *HermesReconciler) checkAppliedDependencies(ctx context.Context, h *v1.Hermes) error {
 	set := &appsv1.StatefulSet{}
 	err := r.reader().Get(ctx, types.NamespacedName{Namespace: h.Namespace, Name: h.Name + "-hermes"}, set)

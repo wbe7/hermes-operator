@@ -80,7 +80,7 @@ func (r *HermesReconciler) deleteUID(ctx context.Context, obj client.Object) err
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 
-func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, reconcileErr error) {
 	if r.APIReader == nil {
 		return ctrl.Result{}, errors.New("uncached APIReader is required")
 	}
@@ -94,6 +94,17 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if !h.DeletionTimestamp.IsZero() {
 		return r.finalize(ctx, h)
 	}
+	// Every exit that can retain an applied workload, including failed partial
+	// applies and status writes, must enforce revocation of its actual sources.
+	// Inspect after apply so valid replacements can recover from revoked sources;
+	// old Pods are checked independently of the new StatefulSet template.
+	defer func() {
+		if !h.Spec.Suspend {
+			if err := r.checkAppliedDependencies(ctx, h); err != nil {
+				result, reconcileErr = r.stopAndFail(ctx, h, "DependenciesReady", err)
+			}
+		}
+	}()
 	if !controllerutil.ContainsFinalizer(h, Finalizer) {
 		base := h.DeepCopy()
 		controllerutil.AddFinalizer(h, Finalizer)
@@ -330,6 +341,33 @@ func podSecurityMatches(want, have corev1.PodSpec) bool {
 		}
 		for i, c := range pair[0] {
 			if c.Name != pair[1][i].Name || !equality.Semantic.DeepEqual(normalizeContainerSecurity(c.SecurityContext), normalizeContainerSecurity(pair[1][i].SecurityContext)) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Live isolation ignores node assignment, default tolerations and other scheduling
+// fields, but never accepts admission-added access to host or credential volumes.
+func podIsolationMatches(want, have corev1.PodSpec) bool {
+	if !podSecurityMatches(want, have) ||
+		want.HostNetwork != have.HostNetwork || want.HostPID != have.HostPID || want.HostIPC != have.HostIPC ||
+		ptr.Deref(want.ShareProcessNamespace, false) != ptr.Deref(have.ShareProcessNamespace, false) ||
+		ptr.Deref(want.HostUsers, true) != ptr.Deref(have.HostUsers, true) ||
+		ptr.Deref(want.AutomountServiceAccountToken, true) != ptr.Deref(have.AutomountServiceAccountToken, true) ||
+		ptr.Deref(want.EnableServiceLinks, true) != ptr.Deref(have.EnableServiceLinks, true) ||
+		want.ServiceAccountName != have.ServiceAccountName ||
+		len(have.EphemeralContainers) != 0 ||
+		!equality.Semantic.DeepEqual(want.Volumes, have.Volumes) {
+		return false
+	}
+	for _, pair := range [][2][]corev1.Container{{want.Containers, have.Containers}, {want.InitContainers, have.InitContainers}} {
+		for i, c := range pair[0] {
+			actual := pair[1][i]
+			if !equality.Semantic.DeepEqual(c.VolumeMounts, actual.VolumeMounts) ||
+				!equality.Semantic.DeepEqual(c.VolumeDevices, actual.VolumeDevices) ||
+				!equality.Semantic.DeepEqual(c.Ports, actual.Ports) {
 				return false
 			}
 		}

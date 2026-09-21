@@ -118,3 +118,51 @@ class RestoreTests(unittest.TestCase):
                 self.assertEqual(json.loads((pairing/'telegram-approved.json').read_text()),{'123':{'user_name':'allowed'}})
                 self.assertEqual(json.loads((pairing/'telegram-pending.json').read_text()),{})
                 self.assertEqual((pairing/'discord-approved.json').read_text(),'{"other": {}}')
+
+    def test_corrupt_dotenv_preserves_exact_home_until_repaired(self):
+        import contextlib, io
+        for adopted in (False, True):
+            with self.subTest(adopted=adopted), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                (home/'config.yaml').write_text('agent:\n  system_prompt: personal\n')
+                (home/'SOUL.md').write_text('personal')
+                (home/'.env').write_bytes(b"PERSONAL='synthetic-secret-unterminated\r\n")
+                if adopted:
+                    (home/'.operator').mkdir()
+                    (home/'.operator/committed.json').write_text('{"ownedPaths":[],"ownedEnv":[]}')
+                    (home/'.operator/pending.json').write_text('{"ownedPaths":[],"ownedEnv":["OLD"]}')
+                def snapshot():
+                    return {str(p.relative_to(home)): p.read_bytes() for p in home.rglob('*') if p.is_file()}
+                before = snapshot()
+                output = io.StringIO()
+                with contextlib.redirect_stderr(output), contextlib.redirect_stdout(output):
+                    with self.assertRaisesRegex(RuntimeError, '^startup restore failed; gateway was not started$'):
+                        restore(home, self.bundle({'model': {'default': 'declared'}}), {'model-api-key': 'synthetic'})
+                self.assertEqual(output.getvalue(), '')
+                self.assertEqual(snapshot(), before)
+                self.assertEqual((home/'.operator').exists(), adopted)
+                (home/'.env').write_text("PERSONAL='repaired-literal'\n")
+                restore(home, self.bundle({'model': {'default': 'declared'}}), {'model-api-key': 'synthetic'})
+                from dotenv import dotenv_values
+                self.assertEqual(dotenv_values(home/'.env', interpolate=False)['PERSONAL'], 'repaired-literal')
+                self.assertEqual(yaml.safe_load((home/'config.yaml').read_text())['model']['default'], 'declared')
+
+    def test_deprecated_cwd_cleanup_first_adoption_and_previous_ownership(self):
+        from bootstrap import load_runtime_environment
+        import os
+        for adopted in (False, True):
+            with self.subTest(adopted=adopted), tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'MESSAGING_CWD':'/wrong', 'TERMINAL_CWD':'/wrong'}):
+                home = Path(directory)
+                (home/'.env').write_text("MESSAGING_CWD='/old'\nTERMINAL_CWD='/old'\nPERSONAL='keep'\n")
+                if adopted:
+                    (home/'.operator').mkdir()
+                    (home/'.operator/committed.json').write_text(json.dumps({'ownedPaths': [], 'ownedEnv':['MESSAGING_CWD','TERMINAL_CWD']}))
+                restore(home, self.bundle({'terminal': {'cwd': '/opt/data/workspace'}}), {'model-api-key':'synthetic'})
+                load_runtime_environment(home)
+                from dotenv import dotenv_values
+                env = dotenv_values(home/'.env', interpolate=False)
+                for key in ('MESSAGING_CWD','TERMINAL_CWD'):
+                    self.assertNotIn(key, env)
+                    self.assertNotIn(key, os.environ)
+                    self.assertNotIn(key, json.loads((home/'.operator/committed.json').read_text())['ownedEnv'])
+                self.assertEqual(env['PERSONAL'], 'keep')

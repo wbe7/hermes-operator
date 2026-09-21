@@ -126,9 +126,8 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         current = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
         current = normalize_reasoning_map(current or {}, desired)
         merged = merge_config(current, desired, previous)
-        from dotenv import dotenv_values
         env_path = home / '.env'
-        current_env = dict(dotenv_values(env_path, interpolate=False)) if env_path.exists() else {}
+        current_env = read_dotenv(env_path)
         for key in previous_env:
             current_env.pop(key, None)
         current_env.update(env)
@@ -163,7 +162,8 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
 
 # These determine bootstrap/service identity rather than user provider preferences.
 RESERVED_ENV = frozenset({'HOME', 'HERMES_HOME', 'HERMES_PROFILE', 'HERMES_DEFAULT_PROFILE',
-    'PYTHONPATH', 'PYTHONHOME', 'PYTHON_DOTENV_DISABLED', 'GATEWAY_MULTIPLEX_PROFILES'})
+    'PYTHONPATH', 'PYTHONHOME', 'PYTHON_DOTENV_DISABLED', 'GATEWAY_MULTIPLEX_PROFILES',
+    'MESSAGING_CWD', 'TERMINAL_CWD'})
 
 
 def fix_service_environment(home):
@@ -181,9 +181,23 @@ def load_runtime_environment(home):
     fix_service_environment(home)
 
 
+def read_dotenv(path):
+    """Reject corrupt bindings without logging their contents or interpolating values."""
+    from dotenv.parser import parse_stream
+    if not path.exists():
+        return {}
+    with path.open() as stream:
+        bindings = list(parse_stream(stream))
+    if any(binding.error for binding in bindings):
+        raise RuntimeError('startup restore failed; gateway was not started')
+    return {binding.key: binding.value for binding in bindings if binding.key is not None}
+
+
 def acquire_startup_lock(home):
     """Nonblocking local lock, inherited by gateway exec; never take over a live owner."""
     import fcntl
+    # Validate before even creating the lock directory/file on first adoption.
+    read_dotenv(home / '.env')
     lock_dir = home / '.operator'
     lock_dir.mkdir(parents=True, exist_ok=True)
     fd = os.open(lock_dir / 'startup.lock', os.O_CREAT | os.O_RDWR, 0o600)
