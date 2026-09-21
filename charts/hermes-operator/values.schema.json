@@ -11,7 +11,7 @@
       "required": ["repository", "tag", "pullPolicy", "pullSecrets"],
       "properties": {
         "repository": {"type": "string", "minLength": 1},
-        "tag": {"type": "string", "minLength": 1},
+        "tag": {"type": "string"},
         "pullPolicy": {"type": "string", "enum": ["IfNotPresent", "Always", "Never"]},
         "pullSecrets": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
       }

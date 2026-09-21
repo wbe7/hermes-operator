@@ -2,7 +2,8 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/wbe7/hermes-operator
-  tag: "0.1.0"
+  # Empty follows Chart.appVersion, including versions set by `helm package`.
+  tag: ""
   pullPolicy: IfNotPresent
   pullSecrets: []
 

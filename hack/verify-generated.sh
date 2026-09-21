@@ -17,6 +17,13 @@ mkdir -p "$tmp/repo"
 cp "$repo_root/go.mod" "$repo_root/go.sum" "$tmp/repo/"
 cp -R "$repo_root/api" "$repo_root/cmd" "$repo_root/config" "$repo_root/internal" "$repo_root/runtime" "$tmp/repo/"
 
+# Generate into clean destinations so stale extra files cannot survive and
+# compare equal merely because they were copied from the source tree.
+rm -f "$tmp/repo/api/v1alpha1/zz_generated.deepcopy.go"
+rm -rf "$tmp/repo/config/crd/bases" "$tmp/repo/internal/workload/assets"
+rm -f "$tmp/repo/config/rbac/role.yaml"
+mkdir -p "$tmp/repo/config/crd/bases" "$tmp/repo/internal/workload/assets"
+
 (
   cd "$tmp/repo"
   python3 internal/workload/generate_assets.py

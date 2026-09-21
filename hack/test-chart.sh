@@ -95,3 +95,9 @@ grep -q 'resolverIPs:' "$tmp/ipv4.out"
 grep -q 'podSelector:' "$tmp/ipv4.out"
 grep -q 'fd00:10:244::/56' "$tmp/dual-stack.out"
 helm lint "$chart" --kube-version 1.34.1 --values "$tmp/ipv4.yaml"
+
+helm package "$chart" --version 7.8.9 --app-version 7.8.9 --destination "$tmp" >/dev/null
+helm template packaged "$tmp/hermes-operator-7.8.9.tgz" \
+  --kube-version 1.34.1 --namespace hermes-system --values "$tmp/ipv4.yaml" \
+  >"$tmp/packaged.out"
+grep -q 'image: "ghcr.io/wbe7/hermes-operator:7.8.9"' "$tmp/packaged.out"
