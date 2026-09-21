@@ -1,5 +1,8 @@
 # Образ агента с браузером и документными инструментами
 
+Порядок обновления версии, пересборки и публикации находится в
+[README — Обновление образа Hermes](../../README.md#updating-hermes-image).
+
 Оператор использует `docker.io/wbe7/hermes:v2026.9.14` для новых инсталляций.
 Один тег содержит `linux/amd64` и `linux/arm64`. Он совпадает с версией Hermes;
 workload запускается по проверенному digest из `internal/runtimecatalog/catalog.go`,
@@ -71,7 +74,8 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 ```
 
 Для локальной загрузки multiarch manifest добавьте `--load` при использовании
-containerd image store. Для публикации добавьте `--push` после проверки обеих платформ.
+containerd image store. После проверки обеих платформ публикуйте загруженный образ
+через `docker push`, как описано в README, без повторной сборки.
 Build context ограничен `images/hermes` и allowlist в `.dockerignore`; `.env` туда не попадает.
 
 `smoke.py` проверяет реальную навигацию Playwright и agent-browser, вызов upstream

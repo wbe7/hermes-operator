@@ -15,3 +15,7 @@ This is a single-context project: `CONTEXT.md` and `docs/adr/`. Before exploring
 ## Project design
 
 Before proposing architecture or implementing the operator, read `docs/design/interview.md` for accepted requirements and open decisions. Consult `docs/research/upstream-and-isolation.md` when a decision depends on Hermes or Kubernetes behavior; distinguish source inspection from verified runtime behavior.
+
+## Hermes image updates
+
+Before changing the Hermes version, rebuilding its image, or publishing it, follow [Updating the Hermes image](README.md#updating-hermes-image). It covers version pins, runtime compatibility, multiarch verification, publication and rollout.
