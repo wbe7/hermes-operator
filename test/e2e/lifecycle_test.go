@@ -110,28 +110,21 @@ func TestAcceptance(t *testing.T) {
 	if ok {
 		results["A07"] = result{Status: "passed", LocalCheck: "passed", Scope: "Retain/Delete/existingClaim and marker on actual PVC", Evidence: []string{"tests.txt", "storage.json"}}
 	}
-	t.Run("A02_A03_Telegram", telegram)
-	if os.Getenv("E2E_TELEGRAM_SEND") == "yes" {
-		data, err := os.ReadFile(filepath.Join(os.Getenv("E2E_DIR"), "telegram-results.json"))
-		if err == nil {
-			var cases map[string]struct {
-				Status string `json:"status"`
-			}
-			if json.Unmarshal(data, &cases) == nil {
-				for id, names := range map[string][]string{"A02": {"allowed_dm", "first_contact", "personalization"}, "A03": {"unauthorized_dm", "denied_group_text", "denied_group_command", "denied_group_media"}} {
-					status := "passed"
-					for _, name := range names {
-						if cases[name].Status == "failed" {
-							status = "failed"
-							break
-						}
-						if cases[name].Status != "passed" {
-							status = "not-run"
-						}
-					}
-					results[id] = result{Status: status, LocalCheck: "separate opt-in live clients", Scope: "dedicated Telegram transport + native SQLite/model/personalization evidence", Evidence: []string{"telegram-results.json"}}
+	var current *telegramReport
+	t.Run("A02_A03_Telegram", func(t *testing.T) { telegram(t, &current) })
+	if current != nil {
+		for id, names := range map[string][]string{"A02": {"allowed_dm", "first_contact", "personalization"}, "A03": {"unauthorized_dm", "denied_group_text", "denied_group_command", "denied_group_media"}} {
+			status := "passed"
+			for _, name := range names {
+				if current.Cases[name].Status == "failed" {
+					status = "failed"
+					break
+				}
+				if current.Cases[name].Status != "passed" {
+					status = "not-run"
 				}
 			}
+			results[id] = result{Status: status, LocalCheck: "separate opt-in live clients", Scope: "dedicated Telegram transport + native SQLite/model/personalization evidence", Evidence: []string{current.Evidence}}
 		}
 	}
 }
