@@ -128,3 +128,21 @@ In separate `hermes-operator-test-secondary`, synthetic unschedulable installati
 Fresh observation on September 21: controller and gateway both Ready, zero container restarts after approximately 2 days 18 hours. Original version, xhigh and active state were restored; the external 10Gi PVC remains Bound. No actual test-user Telegram message is recorded yet; native request/authorization tests must not be presented as proof of a real user's DM conversation.
 
 On September 21, the corrected read-only persistence check passed again after controller-managed replacement: declared model/xhigh/selected credential, original native session ID/history and all 333 personal file hashes remained. A deliberate manager-container SIGTERM then proved restart reconstruction without changing the gateway Pod UID, StatefulSet resourceVersion, applied revision or PVC identity. Adding/removing an unused source-Secret key likewise caused no workload rollout. The controller main container restart count is now one solely due to this test; gateway remains zero. Evidence: `check-manager-restart.py`, `manager-restart.json`.
+
+## Provider connectivity outage and ServiceAccount permissions
+
+On September 21, removing only the exact inference exception from the test CR caused the reconciler to deny TCP connectivity to `192.168.0.210:443`. Across six observations over approximately 100 seconds, local liveness and Telegram readiness remained true; Pod UID, applied revision and restart count (zero) stayed unchanged. The original exception was restored in `finally`, then endpoint reachability was confirmed. Evidence: `check-provider-outage.py`, `provider-outage.json`. This checks provider unavailability while the gateway is idle; it does not claim an active conversational request or provider-retry test.
+
+Actual API authorization checks, impersonating the agent ServiceAccount `hermes-operator-test:hermes-smoke-hermes`, returned `no` for reading Secrets and creating Pods in its namespace. The agent's missing token mount and restricted runtime were independently verified earlier. These checks describe the tested cluster's effective grants; unrelated future RBAC bindings could change them.
+
+## Corrupt home and permission failures on a disposable PVC
+
+Three September 21 cases used a new operator-created 1Gi Delete-mode PVC in `hermes-operator-test-secondary`, fake credentials and the original pinned amd64 Hermes image. The real StatefulSet container failed with exit 1 and the sanitized `startup restore failed; gateway was not started` diagnostic for malformed YAML, non-SQLite database bytes, and a nonwritable `.operator` directory. None reported Ready or disclosed the fake token.
+
+After normal suspension, a restricted helper confirmed unchanged SOUL/workspace markers and the unchanged failed input (including permissions). Only the deliberately broken fixture was repaired. A new original-image Pod with the exact generated runtime/config/credential mounts then executed `bootstrap.py --restore-only`, exited 0, restored the declared model and committed ownership, and preserved the personal markers. This proves bootstrap recovery on the actual volume; fake credentials do not establish Telegram readiness.
+
+All three cases passed. The CR finalized normally and its exact created PVC was deleted; the temporary fake Secret and helper Pods were removed. The real `hermes-smoke` home was not involved. Evidence: `check-corrupt-home.py`, `corrupt-home.json` under `/tmp/hermes-operator-deploy`.
+
+## Retiring an extra managed leaf
+
+A separate disposable created PVC verified A06 with the real reconciler and original-image `--restore-only` Pods. `extraConfig.compression.threshold: 0.61` produced an immutable input revision and was applied alongside a pre-existing `compression.personal_note` and SOUL marker. Removing `extraConfig` from the CR produced a different revision. On the next restoration the previously managed threshold disappeared, while its personal sibling and SOUL remained on the same PVC. Both restoration Pods exited 0. No Telegram consumer or real credentials were needed for this startup ownership check. The CR, exact Delete-mode claim and helpers were removed normally after assertions. Evidence: `check-extra-removal.py`, `extra-removal.json`.
