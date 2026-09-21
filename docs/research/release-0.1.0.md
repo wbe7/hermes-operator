@@ -42,8 +42,11 @@ OpenRouter alias without printing credentials. SQLite assertions were read-only;
 no external SessionStore was instantiated against the live home.
 
 This validates Helm ownership migration and a same-version configuration upgrade
-with a Ready gateway. A future operator-version or data-schema upgrade needs its
-own acceptance; no automatic downgrade guarantee is made.
+with a Ready gateway. The Helm lifecycle subcheck passed; the cross-version
+operator upgrade subcheck remains `not-run`. Consequently, aggregate A12 remains
+`not-run (partial passed)` in the [acceptance ledger](v1-acceptance.md). A future
+operator-version or data-schema upgrade needs its own acceptance; no automatic
+downgrade guarantee is made.
 
 Local private evidence is under `/tmp/hermes-release-0.1.0/`, including
 `install-verification.json`, `upgrade-verification.json`,
