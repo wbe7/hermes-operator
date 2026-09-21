@@ -1,5 +1,7 @@
 # v1 acceptance ledger
 
+Latest source/deployment checkpoint: [final validation](final-validation.md).
+
 Status: **not release-ready**. A row passes only when all its required subchecks
 pass. The executable local suite deliberately does not turn synthetic fixture
 success into native Hermes or Telegram acceptance.

@@ -50,6 +50,10 @@ make test-unit test-envtest test-runtime lint-chart verify-docs verify-generated
 - [Основные поля CR и дополнительные настройки Hermes](docs/adr/0003-typed-core-and-upstream-config.md).
 - [Проверенные предпосылки и источники](docs/research/upstream-and-isolation.md).
 
+## Проверки и границы готовности
+
+[Итоговая проверка исходников и Berger Apps](docs/research/final-validation.md) фиксирует развёрнутый коммит, пройденные проверки и обнаруженные границы. Полная [release-приёмка](docs/research/v1-acceptance.md) остаётся открытой.
+
 ## Работа над проектом
 
 Задачи и спецификации ведутся в [GitHub Issues](https://github.com/wbe7/hermes-operator/issues). Правила инженерных skills настроены через [AGENTS.md](AGENTS.md): [issue tracker](docs/agents/issue-tracker.md), [triage labels](docs/agents/triage-labels.md), [domain docs](docs/agents/domain.md).

@@ -11,3 +11,5 @@ NetworkPolicy закрывает ingress и private/special egress, разреш
 Credentials одной инсталляции доступны процессам внутри её собственного контейнера по принятой продуктовой границе. Не используйте общий client key. Secrets должны быть namespaced и выделены инсталляции; оператор копирует только выбранные keys в owned revision Secret и не записывает values в CR, status, Events, ConfigMap или логи.
 
 Не добавляйте credentials в values, manifests, examples или CI variables для untrusted pull requests. Release publication использует GitHub environments/secrets только в tag workflow; PR workflow не получает privileged publishing credentials.
+
+Изоляция предполагает, что доверенный администратор не меняет selector labels и ownership управляемых ресурсов. При гонке с StatefulSet controller изменение label может оставить ownerless Pod вне селектора политики; оператор сообщает `ResourceConflict`, но не присваивает и не удаляет чужой ресурс. Требуется [административное восстановление](operations.md#изменение-управляющих-labels-вручную). Это не действие, доступное конечному пользователю агента.

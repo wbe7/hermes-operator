@@ -30,3 +30,9 @@ kubectl logs maria-hermes-0 -n hermes-users
 - NetworkPolicyReady означает актуальный объект, но не доказательство CNI enforcement. Выполните разрешённый и запрещённый egress smoke из того же Pod context.
 
 При failed rollout исправьте CR или верните прежний `spec.version`. Возврат версии не гарантирует rollback данных: upstream мог изменить SQLite/schema. Не force-delete finalizers как штатное решение. Перед uninstall удалите ненужные CR и дождитесь finalizers; chart uninstall не удаляет CRD, CR или retained PVC.
+
+## Изменение управляющих labels вручную
+
+Не изменяйте `hermes.wbe7.github.io/installation-uid` и ownerReferences созданного Pod. Пока Pod остаётся owned, оператор обнаруживает несовпадение изоляции и удаляет его с UID precondition. Но StatefulSet controller может первым снять ownerReference после изменения selector label. Тогда оператор показывает `Ready=False`, `ResourceConflict` и не удаляет уже ownerless ресурс. Автоматическое восстановление label в этой гонке не гарантируется.
+
+Администратор должен проверить происхождение Pod, его UID, PVC и StatefulSet, затем вернуть исходный installation-uid из metadata.uid соответствующего Hermes. StatefulSet сможет снова принять Pod; после этого проверьте ownerReference, выбор Pod политикой NetworkPolicy и `Ready=True`. Если происхождение не подтверждено, не присваивайте ресурс инсталляции. Не удаляйте PVC и не снимайте finalizers для такого восстановления. До восстановления label NetworkPolicy инсталляции может не выбирать этот Pod; `Ready=False` само по себе не является сетевым запретом. Пользователь агента не имеет Kubernetes-прав для такого изменения.
