@@ -9,6 +9,38 @@ from contextlib import ExitStack
 
 @unittest.skipUnless(importlib.util.find_spec('gateway'), 'requires official Hermes image')
 class UpstreamSessionTests(unittest.TestCase):
+    def test_provider_url_aliases_restore_declared_credentials(self):
+        import copy, subprocess, sys, yaml
+        from unittest.mock import patch
+        from adapters.v20260914 import reset_provider_credentials
+        endpoint = 'https://declared.invalid/v1'
+        for address in ({'base_url':endpoint}, {'url':endpoint}, {'api':endpoint},
+                        {'api':endpoint, 'url':'https://other.invalid/v1', 'base_url':'https://other.invalid/v1'}):
+            for auth in ('new-test-key', 'no-key-required'):
+                with self.subTest(address=address, auth=auth), tempfile.TemporaryDirectory() as directory:
+                    home = Path(directory)
+                    config = {'model':{'provider':'custom','default':'declared','base_url':endpoint,'api_key':auth},
+                              'providers':{'custom':{**address,'api_key':'old-test-key','key_env':'OLD_TEST_KEY','api_key_env':'OLD_TEST_KEY','key_cmd':'printf old-command-key'},
+                                           'unrelated':{'api':'https://other.invalid/v1','url':endpoint,'base_url':endpoint,'api_key':'keep','key_env':'KEEP_KEY'}}}
+                    unrelated = copy.deepcopy(config['providers']['unrelated'])
+                    (home/'config.yaml').write_text(yaml.safe_dump(config))
+                    (home/'auth.json').write_text(json.dumps({'credential_pool':{'custom:custom':[{'id':'old','api_key':'old-pool-key'}],'custom:unrelated':[{'id':'keep','api_key':'keep-pool-key'}]}}))
+                    with patch.dict(os.environ, {'HERMES_HOME':directory}):
+                        reset_provider_credentials(home, config)
+                    self.assertEqual(config['providers']['unrelated'], unrelated)
+                    self.assertEqual(json.loads((home/'auth.json').read_text())['credential_pool'], {'custom:unrelated':[{'id':'keep','api_key':'keep-pool-key'}]})
+                    (home/'config.yaml').write_text(yaml.safe_dump(config))
+                    code = '''import sys
+from hermes_cli.runtime_provider import resolve_runtime_provider
+r=resolve_runtime_provider(requested='custom',target_model='declared')
+assert r['base_url']=='https://declared.invalid/v1'
+assert r['api_key']==sys.argv[1], 'stored key overrode declared credential'
+'''
+                    result = subprocess.run([sys.executable, '-c', code, auth], env={**os.environ, 'HERMES_HOME':directory, 'HOME':directory, 'CUSTOM_BASE_URL':'', 'OLD_TEST_KEY':'old-env-key'}, capture_output=True)
+                    self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    for field in ('key_env','api_key_env','key_cmd'):
+                        self.assertNotIn(field, config['providers']['custom'])
+
     def test_native_session_store_survives_override_reset(self):
         from unittest.mock import patch
         from gateway.config import GatewayConfig, Platform

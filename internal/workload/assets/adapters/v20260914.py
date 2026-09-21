@@ -95,19 +95,31 @@ def reset_provider_credentials(home, config):
         return
     from bootstrap import atomic_write
     from agent.credential_pool import _iter_custom_providers, _pool_keys_for_custom_entry
+    from hermes_cli.runtime_provider_custom import _entry_url
     auth = json.loads(path.read_text()) if path.exists() else {}
     model = config.get('model', {})
     provider = model.get('provider')
     keys = {provider} if provider and provider != 'custom' else set()
-    endpoint = str(model.get('base_url') or '').rstrip('/')
+    endpoint = str(model.get('base_url') or '').strip().rstrip('/')
     if provider == 'custom':
-        for name, entry in _iter_custom_providers(config):
-            if str(entry.get('base_url') or '').rstrip('/') == endpoint:
+        # The pinned pool normalizer prefers base_url, unlike the named runtime
+        # resolver. Give it a read-only view with the resolver's effective URL
+        # so conflicting aliases cannot retire another provider's pool.
+        pool_config = {**config, 'providers': {
+            name: {**entry, 'base_url': _entry_url(entry)} if isinstance(entry, dict) else entry
+            for name, entry in config.get('providers', {}).items()
+        }}
+        for name, entry in _iter_custom_providers(pool_config):
+            if str(entry.get('base_url') or '').strip().rstrip('/') == endpoint:
                 keys.update(_pool_keys_for_custom_entry(name, entry))
     if provider == 'custom':
-        entries = list(config.get('providers', {}).values()) + list(config.get('custom_providers', []))
-        for entry in entries:
-            if isinstance(entry, dict) and str(entry.get('base_url') or '').rstrip('/') == endpoint:
+        # New keyed providers use api > url > base_url; the legacy list only
+        # accepts base_url. Do not match a shadowed URL and overwrite another
+        # endpoint's credentials.
+        entries = [(entry, _entry_url) for entry in config.get('providers', {}).values()]
+        entries += [(entry, lambda value: value.get('base_url')) for entry in config.get('custom_providers', [])]
+        for entry, address in entries:
+            if isinstance(entry, dict) and str(address(entry) or '').strip().rstrip('/') == endpoint:
                 entry['api_key'] = model.get('api_key', '')
                 if model.get('api_mode'):
                     entry['api_mode'] = model['api_mode']
@@ -145,6 +157,16 @@ def normalize_reasoning_map(current, desired):
         agent = current.get('agent')
         if isinstance(agent, dict):
             agent.pop('reasoning_overrides', None)
+    return current
+
+
+def normalize_model_config(current, desired):
+    """Accept the pinned resolver's scalar model shorthand before owned-leaf merge."""
+    import copy
+    model = current.get('model')
+    if isinstance(desired.get('model'), dict) and isinstance(model, str) and model.strip():
+        current = copy.deepcopy(current)
+        current['model'] = {'default': model.strip()}
     return current
 
 

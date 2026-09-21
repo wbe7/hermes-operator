@@ -79,7 +79,28 @@ def lifecycle():
     wait(lambda:get('hermes','sample')['status'].get('appliedRevision')!=old,'used Secret rotation changes revision')
     patch('hermes','sample',{'version':'unsupported-e2e'})
     wait(lambda:any(c.get('reason')=='UnsupportedVersion' for c in get('hermes','sample')['status']['conditions']),'unsupported version diagnostic')
+    k('-n',NS,'delete','networkpolicy','sample-hermes')
+    wait(lambda:get('statefulset','sample-hermes')['spec']['replicas']==0,'invalid CR must not retain workload without policy')
+    k('-n',NS,'wait','--for=delete','pod/sample-hermes-0','--timeout=120s')
+    assert uid('pvc','sample-hermes-data') == result[NS]['pvcUID']
     patch('hermes','sample',{'version':'v2026.9.14'})
+    wait(lambda:get('statefulset','sample-hermes')['spec']['replicas']==1 and get('networkpolicy','sample-hermes'),'valid CR restores policy and workload')
+    def current_pod():
+        pod=get('pod','sample-hermes-0')
+        revision=get('hermes','sample')['status']['appliedRevision']
+        return pod if not pod['metadata'].get('deletionTimestamp') and pod['metadata'].get('annotations',{}).get('hermes.wbe7.github.io/revision')==revision else None
+    pod=wait(current_pod,'current Pod before direct image drift')
+    # UID test avoids modifying a replacement if reconciliation races this patch.
+    k('-n',NS,'patch','pod','sample-hermes-0','--type=json','-p',json.dumps([
+        {'op':'test','path':'/metadata/uid','value':pod['metadata']['uid']},
+        {'op':'replace','path':'/spec/containers/0/image','value':'invalid.invalid/hermes-review:never'}]))
+    wait(lambda:uid('pod','sample-hermes-0')!=pod['metadata']['uid'] and current_pod(),'direct Pod image drift must be replaced')
+    assert get('pod','sample-hermes-0')['spec']['containers'][0]['image']==get('statefulset','sample-hermes')['spec']['template']['spec']['containers'][0]['image']
+    previous=get('hermes','sample')['status']['appliedRevision']
+    patch('statefulset','sample-hermes',{'updateStrategy':{'type':'RollingUpdate','rollingUpdate':{'partition':1}}})
+    patch('hermes','sample',{'model':{'name':'after-strategy-drift'}})
+    wait(lambda:get('statefulset','sample-hermes')['spec']['updateStrategy'].get('rollingUpdate',{}).get('partition',0)==0,'partition must be reset')
+    wait(lambda:get('hermes','sample')['status']['appliedRevision']!=previous and current_pod(),'partition drift must not trap rollout on old revision')
     k('-n','hermes-system','rollout','restart','deployment/hermes-operator')
     k('-n','hermes-system','rollout','status','deployment/hermes-operator','--timeout=180s')
     # Explicit CRD upgrade always precedes the real Helm upgrade.

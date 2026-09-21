@@ -7,6 +7,35 @@ import yaml
 from bootstrap import restore
 
 class RestoreTests(unittest.TestCase):
+    def test_native_scalar_model_recovers_on_adoption_and_restart(self):
+        for adopted in (False, True):
+            with self.subTest(adopted=adopted), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                bundle = self.bundle({'model':{'default':'declared','provider':'custom','base_url':'https://declared.invalid/v1'}})
+                if adopted:
+                    restore(home, bundle, {'model-api-key':'synthetic'})
+                (home/'config.yaml').write_text('model: old-model\nagent:\n  system_prompt: personal\n')
+                (home/'SOUL.md').write_text('identity')
+                restore(home, bundle, {'model-api-key':'synthetic'})
+                cfg = yaml.safe_load((home/'config.yaml').read_text())
+                self.assertEqual(cfg['model'], bundle['config']['model'])
+                self.assertEqual(cfg['agent']['system_prompt'], 'personal')
+                self.assertEqual((home/'SOUL.md').read_text(), 'identity')
+
+    def test_retired_openrouter_alias_does_not_survive_upgrade(self):
+        from dotenv import dotenv_values
+        for old_manifest in ('committed.json', 'pending.json'):
+            with self.subTest(manifest=old_manifest), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                (home/'.operator').mkdir()
+                (home/'.operator'/old_manifest).write_text(json.dumps({'ownedPaths':[], 'ownedEnv':['OPENROUTER_API_KEY','OPENROUTER_BASE_URL']}))
+                (home/'.env').write_text("OPENROUTER_API_KEY='old-primary-key'\nOPENROUTER_BASE_URL=''\nPERSONAL='keep'\n")
+                restore(home, self.bundle({'model':{'default':'declared'}}), {'model-api-key':'synthetic'})
+                env = dotenv_values(home/'.env', interpolate=False)
+                self.assertNotIn('OPENROUTER_API_KEY', env)
+                self.assertNotIn('OPENROUTER_BASE_URL', env)
+                self.assertEqual(env['PERSONAL'], 'keep')
+
     def bundle(self, config):
         from bootstrap import leaves
         return {'schema': 1, 'release': 'v2026.9.14', 'config': config, 'env': {'HERMES_MODEL_API_KEY': {'credential': 'model-api-key'}, 'CUSTOM_BASE_URL': ''}, 'ownedPaths': [list(path) for path, _ in leaves(config)], 'ownedEnv': ['HERMES_MODEL_API_KEY', 'CUSTOM_BASE_URL']}

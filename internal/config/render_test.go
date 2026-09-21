@@ -16,6 +16,42 @@ import (
 func sources() map[types.NamespacedName]*corev1.Secret {
 	return map[types.NamespacedName]*corev1.Secret{{Namespace: "tenant", Name: "maria-hermes-secret"}: {ObjectMeta: metav1.ObjectMeta{UID: "source-uid"}, Data: map[string][]byte{"MODEL_API_KEY": []byte("SENTINEL${HOME}"), "TELEGRAM_BOT_TOKEN": []byte("SENTINEL-token"), "UNUSED": []byte("unused")}}}
 }
+
+func TestOpenRouterCredentialsAreScopedToItsHostname(t *testing.T) {
+	for _, tc := range []struct {
+		endpoint string
+		owned    bool
+	}{
+		{"https://inference.invalid/v1", false},
+		{"https://openrouter.ai.attacker.invalid/v1", false},
+		{"https://proxy.invalid/openrouter.ai/v1", false},
+		{"https://openrouter.ai/api/v1", true},
+		{"https://API.OPENROUTER.AI.:443/api/v1", true},
+	} {
+		for _, auth := range []string{"APIKey", "None"} {
+			t.Run(tc.endpoint+"/"+auth, func(t *testing.T) {
+				h, r := fixture()
+				h.Spec.Model.BaseURL, h.Spec.Model.Auth = tc.endpoint, auth
+				b, err := Render(h, r, sources())
+				if err != nil {
+					t.Fatal(err)
+				}
+				var doc startupInput
+				if err := json.Unmarshal(b.JSON, &doc); err != nil {
+					t.Fatal(err)
+				}
+				for _, key := range []string{"OPENROUTER_API_KEY", "OPENROUTER_BASE_URL"} {
+					if _, present := doc.Env[key]; present != tc.owned {
+						t.Fatalf("%s owned=%v, want %v", key, present, tc.owned)
+					}
+				}
+				if tc.owned && auth == "None" && doc.Env["OPENROUTER_API_KEY"] != "no-key-required" {
+					t.Fatal("no-auth endpoint retained credentials")
+				}
+			})
+		}
+	}
+}
 func TestDefaultRefsAndRender(t *testing.T) {
 	h, r := fixture()
 	refs := SecretRefs(h)

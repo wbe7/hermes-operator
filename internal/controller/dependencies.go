@@ -7,14 +7,17 @@ import (
 
 	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
 	"github.com/wbe7/hermes-operator/internal/config"
+	"github.com/wbe7/hermes-operator/internal/network"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -194,25 +197,32 @@ func (r *HermesReconciler) configurationFailed(ctx context.Context, h *v1.Hermes
 	return r.failed(ctx, h, "ConfigurationReady", configurationErr)
 }
 
-// The Pod may be on an older revision than the StatefulSet, so inspect both;
-// source values never enter this metadata.
-func (r *HermesReconciler) checkAppliedDependencies(ctx context.Context, h *v1.Hermes) error {
+// A removed StatefulSet can still have live or terminating Pods. The recorded
+// identity lets both exit guards inspect those Pods without adopting strangers.
+func (r *HermesReconciler) appliedWorkload(ctx context.Context, h *v1.Hermes) (*appsv1.StatefulSet, []corev1.Pod, error) {
 	set := &appsv1.StatefulSet{}
 	err := r.reader().Get(ctx, types.NamespacedName{Namespace: h.Namespace, Name: h.Name + "-hermes"}, set)
 	if apierrors.IsNotFound(err) {
 		if h.Status.WorkloadRef == nil {
-			return nil
+			return nil, nil, nil
 		}
 		set.Name = h.Status.WorkloadRef.Name
 		set.Namespace = h.Namespace
 		set.UID = types.UID(h.Status.WorkloadRef.UID)
 	} else if err != nil {
-		return apiFailure("read applied workload dependencies", err)
+		return nil, nil, apiFailure("read applied workload dependencies", err)
 	} else if err = checkOwned(set, h); err != nil {
-		return err
+		return nil, nil, err
 	}
 	pods, err := r.workloadPods(ctx, h, set)
-	if err != nil {
+	return set, pods, err
+}
+
+// The Pod may be on an older revision than the StatefulSet, so inspect both;
+// source values never enter this metadata.
+func (r *HermesReconciler) checkAppliedDependencies(ctx context.Context, h *v1.Hermes) error {
+	set, pods, err := r.appliedWorkload(ctx, h)
+	if err != nil || set == nil {
 		return err
 	}
 	names := map[string]bool{}
@@ -263,6 +273,37 @@ func (r *HermesReconciler) checkAppliedDependencies(ctx context.Context, h *v1.H
 				return problem("DependencyKeyMissing", "an applied credential key is missing or empty")
 			}
 		}
+	}
+	return nil
+}
+
+// Validation/preflight failures may retain the previous workload, but never
+// without its required policy. Stop on uncertainty; a valid CR repairs policy
+// before resuming. This guard does not apply a partially invalid desired spec.
+func (r *HermesReconciler) checkAppliedNetwork(ctx context.Context, h *v1.Hermes) error {
+	set, pods, err := r.appliedWorkload(ctx, h)
+	if err != nil || set == nil {
+		return err
+	}
+	if ptr.Deref(set.Spec.Replicas, int32(0)) == 0 && len(pods) == 0 {
+		return nil
+	}
+	want, err := network.Build(h, r.Network)
+	if err != nil {
+		return problem("InvalidConfiguration", "cannot verify isolation with invalid network configuration")
+	}
+	have := &networkingv1.NetworkPolicy{}
+	if err = r.reader().Get(ctx, client.ObjectKeyFromObject(want), have); err != nil {
+		if apierrors.IsNotFound(err) {
+			return problem("NetworkPolicyMissing", "the applied workload isolation policy is missing")
+		}
+		return apiFailure("read applied isolation policy", err)
+	}
+	if err = checkOwned(have, h); err != nil {
+		return err
+	}
+	if !equality.Semantic.DeepEqual(want.Spec, have.Spec) {
+		return problem("NetworkPolicyDrift", "the applied workload isolation policy differs from the required policy")
 	}
 	return nil
 }

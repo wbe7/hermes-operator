@@ -106,7 +106,7 @@ def _config_credentials(value, credentials, env, names):
 
 def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
     import yaml
-    from adapters.v20260914 import reset_model_overrides, reset_provider_credentials, reset_channel_overrides, normalize_reasoning_map, reset_telegram_pairing
+    from adapters.v20260914 import reset_model_overrides, reset_provider_credentials, reset_channel_overrides, normalize_reasoning_map, normalize_model_config, reset_telegram_pairing
     try:
         if bundle['schema'] != 1 or bundle['release'] != 'v2026.9.14':
             raise ValueError()
@@ -125,6 +125,7 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         config_path = home / 'config.yaml'
         current = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
         current = normalize_reasoning_map(current or {}, desired)
+        current = normalize_model_config(current, desired)
         merged = merge_config(current, desired, previous)
         env_path = home / '.env'
         current_env = read_dotenv(env_path)

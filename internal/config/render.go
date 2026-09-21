@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -121,12 +122,14 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 	} else {
 		modelKey = doc.Env["HERMES_MODEL_API_KEY"]
 	}
-	// The pinned resolver prefers OPENROUTER_API_KEY on an OpenRouter-hosted
-	// custom URL even over model.api_key. Own that alias to prevent stale keys.
-	if h.Spec.Model.Auth == "None" {
-		doc.Env["OPENROUTER_API_KEY"] = "no-key-required"
-	} else {
+	// Match the pinned resolver's hostname rule, including subdomains and a
+	// trailing DNS dot. Other endpoints must not lend their key to auxiliary
+	// OpenRouter clients or overwrite the user's independent OpenRouter setup.
+	endpoint, _ := url.Parse(h.Spec.Model.BaseURL) // Validate has checked the URL.
+	host := strings.TrimRight(strings.ToLower(endpoint.Hostname()), ".")
+	if host == "openrouter.ai" || strings.HasSuffix(host, ".openrouter.ai") {
 		doc.Env["OPENROUTER_API_KEY"] = modelKey
+		doc.Env["OPENROUTER_BASE_URL"] = ""
 	}
 	mode := h.Spec.Model.APIMode
 	if mode == "" {
@@ -206,7 +209,6 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 	// These precedence paths must also reset a pre-operator .env.
 	for k, v := range map[string]string{
 		"CUSTOM_BASE_URL":              "",
-		"OPENROUTER_BASE_URL":          "",
 		"GATEWAY_MULTIPLEX_PROFILES":   "false",
 		"TELEGRAM_ALLOWED_USERS":       strings.Join(ids, ","),
 		"TELEGRAM_ALLOW_ALL_USERS":     "false",

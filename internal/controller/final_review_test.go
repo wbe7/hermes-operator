@@ -103,6 +103,7 @@ func TestApplyAndPreflightFailureCannotRetainRevokedSource(t *testing.T) {
 
 func TestLivePodIsolationDriftIsRejected(t *testing.T) {
 	for name, mutate := range map[string]func(*corev1.Pod){
+		"container-image":         func(p *corev1.Pod) { p.Spec.Containers[0].Image = "unapproved.invalid/hermes:other" },
 		"missing-selection-label": func(p *corev1.Pod) { delete(p.Labels, network.InstallationUIDLabel) },
 		"changed-selection-label": func(p *corev1.Pod) { p.Labels[network.InstallationUIDLabel] = "other" },
 		"host-network":            func(p *corev1.Pod) { p.Spec.HostNetwork = true },

@@ -3,6 +3,16 @@ import unittest
 from bootstrap import merge_config
 
 class MergeTests(unittest.TestCase):
+    def test_scalar_model_normalization_is_narrow_and_does_not_mutate_input(self):
+        from adapters.v20260914 import normalize_model_config
+        current = {'model':' old-model ', 'personal':{'keep':'yes'}}
+        before = copy.deepcopy(current)
+        self.assertEqual(normalize_model_config(current, {'model':{'default':'declared'}}), {'model':{'default':'old-model'},'personal':{'keep':'yes'}})
+        self.assertEqual(current, before)
+        self.assertEqual(normalize_model_config(current, {'other':1}), before)
+        with self.assertRaises(ValueError):
+            merge_config({'personal':'keep'}, {'personal':{'other':1}}, set())
+
     def test_model_reset_preserves_personalization_and_removes_retired_key(self):
         current = {'model': {'default': 'local-choice'}, 'agent': {'system_prompt': 'Speak briefly'}, 'display': {'personality': 'my-personality'}, 'compression': {'threshold': 0.5, 'personal_note': 'keep'}}
         desired = {'model': {'default': 'cr-model'}}

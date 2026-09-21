@@ -27,6 +27,18 @@ cfg=load_config()
 r=resolve_runtime_provider(requested='custom',target_model=cfg['model']['default'])
 assert r['provider']=='custom' and r['base_url']==('https://openrouter.ai/api/v1' if scenario.endswith('-host') else 'https://inference.invalid/v1')
 assert r['api_key']==('no-key-required' if scenario.startswith('noauth') else 'SENTINEL${HOME}')
+import os
+if scenario == 'retired':
+ assert os.environ.get('OPENROUTER_API_KEY') not in ('SENTINEL${HOME}', 'no-key-required')
+elif not scenario.endswith('-host'):
+ # A separate auxiliary provider must never inherit the primary provider key.
+ assert os.environ['OPENROUTER_API_KEY']=='independent-openrouter-key'
+ assert os.environ['OPENROUTER_BASE_URL']=='https://personal-router.invalid/v1'
+ from agent.auxiliary_client import _try_openrouter
+ client,_=_try_openrouter(model='synthetic/model:free')
+ assert client.api_key=='independent-openrouter-key'
+ assert str(client.base_url).rstrip('/')=='https://openrouter.ai/api/v1'
+ client.close()
 assert r['api_mode']=='chat_completions', (scenario, r['api_mode'])
 assert cfg['model']['default']=='test-model'
 assert not cfg['gateway']['proxy_url']
@@ -65,6 +77,7 @@ for scenario in ('default','explicit','noauth','custom-host','noauth-host'):
     with tempfile.TemporaryDirectory() as directory:
         home=Path(directory)
         cfg=yaml.safe_load(Path('/checks/personal-paths.yaml').read_text())
+        cfg['model']='old-model'
         cfg['custom_providers']=[{'name':'legacy','base_url':'https://inference.invalid/v1','api_key':'stale-key','api_mode':'responses'}]
         cfg['gateway']={'proxy_url':'https://wrong.invalid','proxy_key':'old-key'}
         cfg['platforms']={'telegram':{'enabled':False,'extra':{'allow_from':['999'],'group_allow_from':['999']}}}
@@ -74,6 +87,8 @@ for scenario in ('default','explicit','noauth','custom-host','noauth-host'):
         (home/'SOUL.md').write_text('identity')
         (home/'workspace').mkdir(); (home/'workspace/personal.txt').write_text('work')
         (home/'.env').write_text("CUSTOM_BASE_URL='https://stale.invalid/v1'\nTELEGRAM_ALLOWED_USERS='999'\nTELEGRAM_ALLOW_ALL_USERS='true'\nTELEGRAM_GUEST_MODE='true'\nTELEGRAM_ALLOWED_CHATS='-999'\nDISCORD_BOT_TOKEN='synthetic-discord'\nGATEWAY_PROXY_URL='https://wrong.invalid'\nGATEWAY_MULTIPLEX_PROFILES='true'\n")
+        with (home/'.env').open('a') as env:
+            env.write("OPENROUTER_API_KEY='independent-openrouter-key'\nOPENROUTER_BASE_URL='https://personal-router.invalid/v1'\n")
         (home/'gateway.json').write_text(json.dumps({'platforms':{'telegram':{'token':'old-token','extra':{'allow_from':['999'],'group_allow_from':['999'],'group_allowed_chats':['-999'],'guest_mode':True},'channel_overrides':{'123':{'model':'old','provider':'old','system_prompt':'personal channel'}}}},'multiplex_profiles':True}))
         for layout in ('pairing','platforms/pairing'):
             pairing=home/layout; pairing.mkdir(parents=True,exist_ok=True)
@@ -89,6 +104,8 @@ for scenario in ('default','explicit','noauth','custom-host','noauth-host'):
         assert (home/'SOUL.md').read_text()=='identity'
         assert (home/'workspace/personal.txt').read_text()=='work'
         # Retiring CR extra leaves must preserve sibling personal keys.
+        raw['model']='user-edited-model'
+        (home/'config.yaml').write_text(yaml.safe_dump(raw))
         apply(home,'retired')
         raw=yaml.safe_load((home/'config.yaml').read_text())
         assert raw['compression']=={'personal_note':'keep'}

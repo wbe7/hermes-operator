@@ -20,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -95,13 +96,17 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return r.finalize(ctx, h)
 	}
 	// Every exit that can retain an applied workload, including failed partial
-	// applies and status writes, must enforce revocation of its actual sources.
+	// applies and status writes, must enforce credentials and network isolation.
 	// Inspect after apply so valid replacements can recover from revoked sources;
 	// old Pods are checked independently of the new StatefulSet template.
 	defer func() {
 		if !h.Spec.Suspend {
 			if err := r.checkAppliedDependencies(ctx, h); err != nil {
 				result, reconcileErr = r.stopAndFail(ctx, h, "DependenciesReady", err)
+				return
+			}
+			if err := r.checkAppliedNetwork(ctx, h); err != nil {
+				result, reconcileErr = r.stopAndFail(ctx, h, "NetworkPolicyReady", err)
 			}
 		}
 	}()
@@ -257,6 +262,9 @@ func (r *HermesReconciler) apply(ctx context.Context, h *v1.Hermes, desired clie
 	case *appsv1.StatefulSet:
 		have := current.(*appsv1.StatefulSet)
 		have.Spec.Replicas = ptr.To(*want.Spec.Replicas)
+		if !equality.Semantic.DeepEqual(normalizeUpdateStrategy(want.Spec.UpdateStrategy), normalizeUpdateStrategy(have.Spec.UpdateStrategy)) {
+			have.Spec.UpdateStrategy = *want.Spec.UpdateStrategy.DeepCopy()
+		}
 		if have.Spec.Template.Annotations[workload.RevisionAnnotation] != want.Spec.Template.Annotations[workload.RevisionAnnotation] || !templateMatches(want.Spec.Template, have.Spec.Template) {
 			have.Spec.Template = *want.Spec.Template.DeepCopy()
 		}
@@ -280,6 +288,27 @@ func (r *HermesReconciler) apply(ctx context.Context, h *v1.Hermes, desired clie
 		return apiFailure("patch resource", err)
 	}
 	return nil
+}
+
+// The API defaults partition and (when enabled) maxUnavailable. Preserve those
+// equivalent representations rather than patching them away on every reconcile.
+func normalizeUpdateStrategy(strategy appsv1.StatefulSetUpdateStrategy) appsv1.StatefulSetUpdateStrategy {
+	out := strategy.DeepCopy()
+	if out.Type == "" {
+		out.Type = appsv1.RollingUpdateStatefulSetStrategyType
+	}
+	if out.Type == appsv1.RollingUpdateStatefulSetStrategyType {
+		if out.RollingUpdate == nil {
+			out.RollingUpdate = &appsv1.RollingUpdateStatefulSetStrategy{}
+		}
+		if out.RollingUpdate.Partition == nil {
+			out.RollingUpdate.Partition = ptr.To(int32(0))
+		}
+		if out.RollingUpdate.MaxUnavailable == nil {
+			out.RollingUpdate.MaxUnavailable = ptr.To(intstr.FromInt32(1))
+		}
+	}
+	return *out
 }
 
 // DeepDerivative ignores server default fields, but also accepts extra slices
@@ -349,7 +378,7 @@ func podSecurityMatches(want, have corev1.PodSpec) bool {
 }
 
 // Live isolation ignores node assignment, default tolerations and other scheduling
-// fields, but never accepts admission-added access to host or credential volumes.
+// fields, but requires the declared images and rejects added host/credential access.
 func podIsolationMatches(want, have corev1.PodSpec) bool {
 	if !podSecurityMatches(want, have) ||
 		want.HostNetwork != have.HostNetwork || want.HostPID != have.HostPID || want.HostIPC != have.HostIPC ||
@@ -365,7 +394,8 @@ func podIsolationMatches(want, have corev1.PodSpec) bool {
 	for _, pair := range [][2][]corev1.Container{{want.Containers, have.Containers}, {want.InitContainers, have.InitContainers}} {
 		for i, c := range pair[0] {
 			actual := pair[1][i]
-			if !equality.Semantic.DeepEqual(c.VolumeMounts, actual.VolumeMounts) ||
+			if c.Image != actual.Image ||
+				!equality.Semantic.DeepEqual(c.VolumeMounts, actual.VolumeMounts) ||
 				!equality.Semantic.DeepEqual(c.VolumeDevices, actual.VolumeDevices) ||
 				!equality.Semantic.DeepEqual(c.Ports, actual.Ports) {
 				return false
