@@ -64,7 +64,7 @@ func ValidateWeb(h *v1.Hermes) error {
 	if len(validation.IsDNS1123Subdomain(w.GatewayRef.Name)) != 0 || len(validation.IsDNS1123Label(GatewayNamespace(h))) != 0 || len(validation.IsDNS1123Label(w.GatewayRef.SectionName)) != 0 {
 		return invalid("spec.web.gatewayRef", "requires Gateway name, namespace and HTTPS listener")
 	}
-	if len(w.Auth.Username) > 128 || strings.ContainsAny(w.Auth.Username, "\x00\r\n") {
+	if len(w.Auth.Username) > 128 || strings.TrimSpace(strings.Trim(w.Auth.Username, "\x1c\x1d\x1e\x1f")) != w.Auth.Username || strings.ContainsAny(w.Auth.Username, "\x00\r\n") {
 		return invalid("spec.web.auth.username", "invalid username")
 	}
 	n := w.Network

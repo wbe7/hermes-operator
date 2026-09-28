@@ -39,7 +39,7 @@ func TestWebCredentialsGeneratedOnceAndPreserveSource(t *testing.T) {
 	}
 }
 func TestWebCredentialsRespectProvidedImmutableAndEmpty(t *testing.T) {
-	for _, mode := range []string{"provided", "immutable-missing", "empty"} {
+	for _, mode := range []string{"provided", "immutable-missing", "empty", "password-trim", "signing-blank"} {
 		t.Run(mode, func(t *testing.T) {
 			r, h := unit(t, true)
 			h.Spec.Web = &v1.WebSpec{Enabled: true}
@@ -52,7 +52,13 @@ func TestWebCredentialsRespectProvidedImmutableAndEmpty(t *testing.T) {
 			if mode == "empty" {
 				s.Data["WEB_PASSWORD"] = []byte{}
 			}
-			if mode != "empty" {
+			if mode == "password-trim" {
+				s.Data["WEB_PASSWORD"] = []byte(" chosen-password ")
+			}
+			if mode == "signing-blank" {
+				s.Data["WEB_SESSION_SECRET"] = []byte(strings.Repeat(" ", 32))
+			}
+			if mode == "provided" || mode == "immutable-missing" {
 				s.Immutable = ptr.To(true)
 			}
 			if err := r.Update(ctx, s); err != nil {
@@ -66,7 +72,7 @@ func TestWebCredentialsRespectProvidedImmutableAndEmpty(t *testing.T) {
 			if mode == "provided" && string(s.Data["WEB_PASSWORD"]) != "chosen-password" {
 				t.Fatal("provided password changed")
 			}
-			if mode != "provided" {
+			if mode != "provided" && mode != "signing-blank" {
 				if _, ok := s.Data["WEB_SESSION_SECRET"]; ok {
 					t.Fatal("partial update on invalid secret")
 				}

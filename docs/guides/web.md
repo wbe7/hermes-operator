@@ -90,7 +90,7 @@ spec:
 
 Оператор использует заданные непустые значения, а отсутствующие генерирует
 один раз из 32 случайных байт. Остальные ключи, labels и ownership Secret
-сохраняются. Пустое значение — ошибка, не команда регенерации. Immutable Secret
+сохраняются. Пустое значение или пробелы по краям — ошибка, не команда регенерации. Upstream обрезает пробелы; оператор не меняет исходные значения молча. Immutable Secret
 должен содержать оба ключа заранее. Если Secret управляет External Secrets или
 другой контроллер, задайте оба ключа в его источнике, чтобы он не удалял их.
 
@@ -126,3 +126,29 @@ Upstream рекомендует password auth для доверенной сет
 общий origin. Используйте Subdomain для взаимно недоверенных клиентов; Path —
 для одной доверенной группы. Ни отдельные cookie paths, ни NetworkPolicy не
 превращают разные пути в отдельные browser security boundaries.
+
+## Повторить smoke-проверки
+
+На выделенной тестовой инсталляции задайте `E2E_WEB_KUBECONFIG`,
+`E2E_WEB_CONTEXT`, `E2E_WEB_NAMESPACE`, `E2E_WEB_HERMES`,
+`E2E_WEB_DEDICATED=yes`. Namespace должен начинаться с `hermes-operator-test`.
+
+```bash
+python3 hack/e2e-web.py
+```
+
+Проверяются настоящий HTTPS, закрытый API, неверный пароль, login, cookie
+Secure/Path, frontend assets, WebSocket upgrade и защита от повторного ticket.
+Credential читается напрямую из Secret и не выводится. Сам тест не меняет CR.
+
+Дополнительные **изменяющие состояние** проверки запускаются по одной:
+
+```bash
+python3 hack/e2e-web-lifecycle.py --restart # пересоздать Pod, проверить прежнюю сессию
+python3 hack/e2e-web-lifecycle.py --rotate  # заменить оба Web key, отозвать старые сессии
+python3 hack/e2e-web-lifecycle.py --toggle  # Web-only → ни одного канала → Web-only
+```
+
+Последние две команды предназначены для временного агента. `--rotate` не
+восстанавливает старый пароль: новый остаётся в основном Secret. `--toggle`
+проверяет сохранение keys и отсутствие Telegram, не сбрасывает PVC.

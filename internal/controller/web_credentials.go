@@ -37,8 +37,8 @@ func (r *HermesReconciler) ensureWebCredentials(ctx context.Context, h *v1.Herme
 			missing = append(missing, key)
 			continue
 		}
-		if len(value) == 0 || !utf8.Valid(value) || strings.ContainsRune(string(value), '\x00') || (key == "WEB_SESSION_SECRET" && len(value) < 16) {
-			return problem("InvalidWebCredentials", "web credential keys must contain valid nonempty text and a signing key of at least 16 bytes")
+		if len(value) == 0 || strings.TrimSpace(strings.Trim(string(value), "\x1c\x1d\x1e\x1f")) != string(value) || !utf8.Valid(value) || strings.ContainsRune(string(value), '\x00') || (key == "WEB_SESSION_SECRET" && len(value) < 16) {
+			return problem("InvalidWebCredentials", "web credentials must be nonempty text without surrounding whitespace; signing key requires at least 16 bytes")
 		}
 	}
 	if len(missing) == 0 {

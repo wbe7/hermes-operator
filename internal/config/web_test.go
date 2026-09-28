@@ -128,3 +128,13 @@ func TestDashboardCannotBypassManagedConfig(t *testing.T) {
 		t.Fatal("dashboard env override accepted")
 	}
 }
+
+func TestWebUsernameMustMatchUpstreamWithoutTrimming(t *testing.T) {
+	for _, username := range []string{" admin", "admin ", "   ", "\x1cadmin"} {
+		h := webFixture(t, validWeb, false)
+		h.Spec.Web.Auth.Username = username
+		if err := ValidateWeb(h); err == nil {
+			t.Fatalf("trimmed username accepted: %q", username)
+		}
+	}
+}

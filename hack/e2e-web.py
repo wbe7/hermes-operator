@@ -29,7 +29,7 @@ def validate_url(url):
 def websocket_upgrade(url, ticket):
     p = urllib.parse.urlsplit(url)
     key = base64.b64encode(secrets.token_bytes(16)).decode()
-    path = p.path.rstrip('/') + '/api/events?ticket=' + urllib.parse.quote(ticket)
+    path = p.path.rstrip('/') + '/api/events?channel=operator-smoke&ticket=' + urllib.parse.quote(ticket)
     with socket.create_connection((p.hostname, 443), timeout=20) as raw:
         with ssl.create_default_context().wrap_socket(raw, server_hostname=p.hostname) as conn:
             request = f'GET {path} HTTP/1.1\r\nHost: {p.hostname}\r\nOrigin: https://{p.hostname}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n'
