@@ -219,7 +219,7 @@ func Validate(h *v1.Hermes, r runtimecatalog.Release) error {
 			}
 		}
 	}
-	if err := validateWeb(h); err != nil {
+	if err := ValidateWeb(h); err != nil {
 		return err
 	}
 	for _, name := range h.Spec.Tools.Enabled {

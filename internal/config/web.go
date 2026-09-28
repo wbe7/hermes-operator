@@ -45,7 +45,7 @@ func boundedSelector(s *metav1.LabelSelector) bool {
 	_, err := metav1.LabelSelectorAsSelector(s)
 	return err == nil
 }
-func validateWeb(h *v1.Hermes) error {
+func ValidateWeb(h *v1.Hermes) error {
 	if !WebEnabled(h) {
 		return nil
 	}
