@@ -2,7 +2,7 @@
 
 Проект самостоятельного Kubernetes-оператора для декларативного запуска [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-Опубликован экспериментальный [Hermes Operator 0.1.0](https://github.com/wbe7/hermes-operator/releases/tag/operator-v0.1.0): образ `ghcr.io/wbe7/hermes-operator:0.1.0` и chart `oci://ghcr.io/wbe7/charts/hermes-operator` доступны без авторизации. Образ оператора и образ агента `wbe7/hermes:v2026.9.14` поддерживают amd64/arm64. API — `v1alpha1`; полная [приёмка](docs/research/v1-acceptance.md) ещё не завершена. Публикация релиза не означает завершённую production-квалификацию.
+Опубликован экспериментальный [Hermes Operator 0.2.0](https://github.com/wbe7/hermes-operator/releases/tag/operator-v0.2.0): образ `ghcr.io/wbe7/hermes-operator:0.2.0` и chart `oci://ghcr.io/wbe7/charts/hermes-operator` доступны без авторизации. Образ оператора и образ агента `wbe7/hermes:v2026.9.14` поддерживают amd64/arm64. API — `v1alpha1`; полная [приёмка](docs/research/v1-acceptance.md) ещё не завершена. Публикация релиза не означает завершённую production-квалификацию.
 
 ## Возможности текущей ветки
 
@@ -183,6 +183,8 @@ Workflow берёт версии image/chart из тега; для исходн�
 
 Установка и обновление из OCI, включая отдельное применение CRD и закрепление
 image digest, описаны в [руководстве по установке](docs/guides/install.md).
+Обновление Berger Apps на 0.2.0 и проверка сохранности инсталляций описаны в
+[отчёте 0.2.0](docs/research/release-0.2.0.md).
 Проверенный переход Berger Apps на Helm описан в [отчёте 0.1.0](docs/research/release-0.1.0.md).
 
 ## Документация проектирования
@@ -200,7 +202,7 @@ image digest, описаны в [руководстве по установке]
 
 ## Проверки и границы готовности
 
-[Отчёт о релизе и Helm](docs/research/release-0.1.0.md) фиксирует опубликованные артефакты и текущую установку. [Smoke-проверка с чистого home](docs/research/fresh-smoke-2026-09-21.md) содержит последующие результаты. [Предыдущее ревью и проверки](docs/research/final-validation.md) сохранены как история; актуальный остаток — в [приёмке](docs/research/v1-acceptance.md).
+[Отчёт о релизе 0.2.0](docs/research/release-0.2.0.md) фиксирует актуальные артефакты и установку; [отчёт 0.1.0](docs/research/release-0.1.0.md) — первоначальный переход на Helm. [Smoke-проверка с чистого home](docs/research/fresh-smoke-2026-09-21.md) содержит последующие результаты. [Предыдущее ревью и проверки](docs/research/final-validation.md) сохранены как история; актуальный остаток — в [приёмке](docs/research/v1-acceptance.md).
 
 ## Работа над проектом
 
