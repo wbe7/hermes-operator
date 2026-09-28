@@ -76,3 +76,7 @@ StatefulSet должен использовать `RollingUpdate` без нен�
 Не изменяйте `hermes.wbe7.github.io/installation-uid` и ownerReferences созданного Pod. Пока Pod остаётся owned, оператор обнаруживает несовпадение изоляции и удаляет его с UID precondition. Но StatefulSet controller может первым снять ownerReference после изменения selector label. Тогда оператор показывает `Ready=False`, `ResourceConflict` и не удаляет уже ownerless ресурс. Автоматическое восстановление label в этой гонке не гарантируется.
 
 Администратор должен проверить происхождение Pod, его UID, PVC и StatefulSet, затем вернуть исходный installation-uid из metadata.uid соответствующего Hermes. StatefulSet сможет снова принять Pod; после этого проверьте ownerReference, выбор Pod политикой NetworkPolicy и `Ready=True`. Если происхождение не подтверждено, не присваивайте ресурс инсталляции. Не удаляйте PVC и не снимайте finalizers для такого восстановления. До восстановления label NetworkPolicy инсталляции может не выбирать этот Pod; `Ready=False` само по себе не является сетевым запретом. Пользователь агента не имеет Kubernetes-прав для такого изменения.
+
+## Web
+
+Включение, Secret keys, сохранение сессий и отзыв credentials: [Web guide](web.md). `WebReady=False` проверяйте по reason: `GatewayUnavailable`, `GatewayListenerMissing`, `GatewayHostnameMismatch`, `GatewayAttachmentDenied`, `GatewayNotReady`, `WebAddressConflict`, `RoutePending`. Для `RoutePending` смотрите HTTPRoute parent conditions. `Ready=True` не заменяет внешнюю проверку DNS/TLS и входа.

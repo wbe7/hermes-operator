@@ -10,7 +10,7 @@ Agent Pod запускается с UID/GID/fsGroup 10000, `runAsNonRoot`, `allo
 основной границей остаются non-root контейнер и ограничения Kubernetes. Браузер
 делит доступ к файлам своей инсталляции с агентом.
 
-NetworkPolicy закрывает ingress и private/special egress, разрешает публичные назначения, заданный DNS и точные `network.allowPrivate` IP. Политики Kubernetes складываются; другая разрешающая policy может расширить доступ. NAT/node traffic и enforcement зависят от CNI. Публичные infrastructure ranges нужно явно включить в `infrastructureCIDRs`.
+NetworkPolicy закрывает ingress (кроме явно заданного Gateway на TCP9119 при Web) и private/special egress, разрешает публичные назначения, заданный DNS и точные `network.allowPrivate` IP. Политики Kubernetes складываются; другая разрешающая policy может расширить доступ. NAT/node traffic и enforcement зависят от CNI. Публичные infrastructure ranges нужно явно включить в `infrastructureCIDRs`.
 
 Для local inference по HTTP используйте `provider: custom`, `apiMode: chat_completions`, `auth: None` и точное IP-исключение, как в [примере](../../examples/hermes-local-inference.yaml). Hostname/CIDR exception и произвольный Responses endpoint в v1 не поддержаны.
 
@@ -19,3 +19,5 @@ Credentials одной инсталляции доступны процесса�
 Не добавляйте credentials в values, manifests, examples или CI variables для untrusted pull requests. Release publication использует GitHub environments/secrets только в tag workflow; PR workflow не получает privileged publishing credentials.
 
 Изоляция предполагает, что доверенный администратор не меняет selector labels и ownership управляемых ресурсов. При гонке с StatefulSet controller изменение label может оставить ownerless Pod вне селектора политики; оператор сообщает `ResourceConflict`, но не присваивает и не удаляет чужой ресурс. Требуется [административное восстановление](operations.md#изменение-управляющих-labels-вручную). Это не действие, доступное конечному пользователю агента.
+
+При Web оператору дополнительно нужны read Gateway/Namespace и управление HTTPRoute. Полный native UI и ограничения password auth/shared origin описаны в [Web guide](web.md).

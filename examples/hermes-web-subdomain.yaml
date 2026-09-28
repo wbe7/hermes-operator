@@ -1,0 +1,32 @@
+apiVersion: hermes.wbe7.github.io/v1alpha1
+kind: Hermes
+metadata:
+  name: maria
+  namespace: hermes-users
+spec:
+  version: v2026.9.14
+  model:
+    provider: custom
+    name: tenant-model
+    baseURL: https://inference.example.com/v1
+  storage:
+    create:
+      size: 10Gi
+  web:
+    enabled: true
+    routing:
+      mode: Subdomain
+      baseDomain: agents.example.com
+    gatewayRef:
+      name: external
+      namespace: infra-gateway
+      sectionName: https-agents
+    network:
+      ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: infra-gateway
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: external
+      trustedProxyCIDRs: ["10.42.0.0/16"] # replace with actual proxy source CIDRs

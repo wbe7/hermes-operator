@@ -4,12 +4,12 @@
 
 Опубликован экспериментальный [Hermes Operator 0.1.0](https://github.com/wbe7/hermes-operator/releases/tag/operator-v0.1.0): образ `ghcr.io/wbe7/hermes-operator:0.1.0` и chart `oci://ghcr.io/wbe7/charts/hermes-operator` доступны без авторизации. Образ оператора и образ агента `wbe7/hermes:v2026.9.14` поддерживают amd64/arm64. API — `v1alpha1`; полная [приёмка](docs/research/v1-acceptance.md) ещё не завершена. Публикация релиза не означает завершённую production-квалификацию.
 
-## Согласованный первый релиз
+## Возможности текущей ветки
 
 - Одна инсталляция описывается namespaced custom resource, который создаёт администратор или уполномоченный backend.
 - Одна установка оператора обслуживает весь кластер; ресурсы каждой инсталляции и её Secret/PVC references остаются в её namespace.
 - Оригинальный Hermes без изменений исходного кода; образ `wbe7/hermes` на базе официального с готовым браузером, офисными/PDF инструментами и OCR для amd64/arm64.
-- Личные сообщения Telegram как основной канал. Группы могут быть отдельным опциональным расширением; веб-интерфейс отложен.
+- Telegram и Web — независимые опциональные каналы; допустимы оба или ни одного. Web публикуется через готовый Gateway, с native авторизацией и credentials в основном Secret. Релиз `0.1.0` ещё не содержит Web.
 - Эталонные модель, reasoning, Telegram-подключение и другие настройки задаются CR; credentials хранятся в Secrets. Runtime config writable, а перед каждым запуском заданные параметры восстанавливаются.
 - Первичная персональная настройка, SOUL, личность и пользовательские инструкции доступны пользователю внутри агента и сохраняются на PVC.
 - Восстановление конфигурации не сбрасывает SOUL, skills, память, историю, workspace и пользовательские ключи config.
@@ -25,7 +25,8 @@
 
 - [минимальная инсталляция](examples/hermes-minimal.yaml);
 - [local inference без model key](examples/hermes-local-inference.yaml);
-- [существующий PVC](examples/hermes-existing-pvc.yaml).
+- [существующий PVC](examples/hermes-existing-pvc.yaml);
+- [Web через Gateway API](docs/guides/web.md): отдельные поддомены или пути, независимо от Telegram.
 
 API и defaults перечислены в [справочнике v1alpha1](docs/reference/hermes-v1alpha1.md). Ротация, storage и failed rollout описаны в [operations guide](docs/guides/operations.md), границы изоляции — в [security guide](docs/guides/security.md), сохранение пользовательской настройки — в [personalization guide](docs/guides/personalization.md).
 

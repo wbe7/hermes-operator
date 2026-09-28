@@ -218,7 +218,7 @@ func TestHermesAdmission(t *testing.T) {
 		t.Fatalf("existing unbound claim rejected at admission: %v", err)
 	}
 
-	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml"} {
+	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml"} {
 		t.Run(filename, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(root, "examples", filename))
 			if err != nil {
