@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -68,6 +69,25 @@ func TestHermesAdmission(t *testing.T) {
 
 	if err := create(t, "valid", func(map[string]any) {}, true); err != nil {
 		t.Fatalf("minimal CR rejected: %v", err)
+	}
+	for _, name := range []string{"no-channels", "disabled-web"} {
+		if err := create(t, name, func(o map[string]any) {
+			spec := o["spec"].(map[string]any)
+			delete(spec, "telegram")
+			if name == "disabled-web" {
+				spec["web"] = map[string]any{"enabled": false}
+			}
+		}, true); err != nil {
+			t.Fatalf("optional channels rejected: %v", err)
+		}
+	}
+	if err := create(t, "typed-disabled-web", func(o map[string]any) {
+		b, _ := json.Marshal(v1.WebSpec{Enabled: false})
+		var web map[string]any
+		_ = json.Unmarshal(b, &web)
+		o["spec"].(map[string]any)["web"] = web
+	}, true); err != nil {
+		t.Fatalf("typed disabled Web rejected: %v", err)
 	}
 	defaulted, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "valid", metav1.GetOptions{})
 	if err != nil {
@@ -198,7 +218,7 @@ func TestHermesAdmission(t *testing.T) {
 		t.Fatalf("existing unbound claim rejected at admission: %v", err)
 	}
 
-	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml"} {
+	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml"} {
 		t.Run(filename, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(root, "examples", filename))
 			if err != nil {

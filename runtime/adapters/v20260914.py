@@ -55,7 +55,7 @@ def _created_at(pid):
     return psutil.Process(pid).create_time()
 
 
-def _health(home, readiness):
+def _health(home, readiness, telegram_enabled=True):
     import time
     try:
         record, identity = _runtime_status(home)
@@ -71,6 +71,8 @@ def _health(home, readiness):
             return False
         if not readiness:
             return True
+        if not telegram_enabled:
+            return record.get('gateway_state') == 'running' and record.get('session_store', {}).get('status') == 'ok'
         telegram = record.get('platforms', {}).get('telegram', {})
         return (record.get('gateway_state') == 'running' and
                 record.get('session_store', {}).get('status') == 'ok' and
@@ -80,8 +82,8 @@ def _health(home, readiness):
         return False
 
 
-def ready(home: Path) -> bool:
-    return _health(home, True)
+def ready(home: Path, telegram_enabled=True) -> bool:
+    return _health(home, True, telegram_enabled)
 
 
 def live(home: Path) -> bool:

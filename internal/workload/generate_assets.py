@@ -5,7 +5,7 @@ import sys
 
 root = Path(__file__).resolve().parents[2]
 target = Path(__file__).resolve().parent / 'assets'
-paths = ['bootstrap.py', 'probe.py', 'adapters/__init__.py', 'adapters/v20260914.py']
+paths = ['supervisor.py', 'bootstrap.py', 'probe.py', 'adapters/__init__.py', 'adapters/v20260914.py']
 expected = {name: (root / 'runtime' / name).read_bytes() for name in paths}
 expected['SHA256SUMS'] = ''.join(f'{hashlib.sha256(data).hexdigest()}  {name}\n' for name, data in sorted(expected.items())).encode()
 if '--check' in sys.argv:

@@ -356,3 +356,27 @@ func TestMappedExplicitExceptionNormalization(t *testing.T) {
 		t.Fatal("IPv6 DNS is not exact")
 	}
 }
+
+func TestWebIngressOnlyFromGatewayOnDashboardPort(t *testing.T) {
+	h := testfixtures.Hermes(t)
+	h.Spec.Web = &v1alpha1.WebSpec{Enabled: true, Routing: v1alpha1.WebRoutingSpec{Mode: "Path", BaseDomain: "agents.example.com"}, GatewayRef: v1alpha1.WebGatewayRef{Name: "external", Namespace: "infra", SectionName: "https"}, Network: v1alpha1.WebNetworkSpec{IngressFrom: []networkingv1.NetworkPolicyPeer{{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kubernetes.io/metadata.name": "infra"}}, PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"gateway": "external"}}}}, TrustedProxyCIDRs: []string{"10.244.0.0/16"}}}
+	p, err := Build(h, clusterConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Spec.Ingress) != 1 || len(p.Spec.Ingress[0].From) != 1 || p.Spec.Ingress[0].Ports[0].Port.IntVal != 9119 {
+		t.Fatal("bounded web ingress missing")
+	}
+	if allows(p, "192.168.1.10", 443, "TCP") {
+		t.Fatal("private egress opened")
+	}
+	p.Spec.Ingress[0].From[0].PodSelector.MatchLabels["gateway"] = "mutated"
+	if h.Spec.Web.Network.IngressFrom[0].PodSelector.MatchLabels["gateway"] != "external" {
+		t.Fatal("input mutated")
+	}
+	h.Spec.Web.Enabled = false
+	p, err = Build(h, clusterConfig())
+	if err != nil || len(p.Spec.Ingress) != 0 {
+		t.Fatal("ingress remains open")
+	}
+}

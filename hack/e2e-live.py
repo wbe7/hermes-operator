@@ -59,7 +59,8 @@ for folder in ['memories','skills','workspace','cron']:
 for filename in ['SOUL.md','USER.md']:
  p=home/filename
  if p.exists():files[filename]=hashlib.sha256(p.read_bytes()).hexdigest()
-assert json.loads((home/'gateway_state.json').read_text())['pid']==1
+from adapters.v20260914 import live
+assert live(home), 'native gateway identity/liveness check failed'
 print(json.dumps({'model':c['model']['default'],'provider':c['model']['provider'],'reasoning':c['agent']['reasoning_effort'],'files':files,'personalConfigSHA256':personal_digest,'sessions':rows,'expected':{'model':b['config']['model']['default'],'provider':b['config']['model']['provider'],'reasoning':b['config']['agent']['reasoning_effort']}}))
 '''
 def snapshot(): return json.loads(call(['exec',name+'-hermes-0','--','/opt/hermes/.venv/bin/python','-I','-c',script]))

@@ -38,7 +38,8 @@ type HermesSpec struct {
 	Model       ModelSpec       `json:"model"`
 	// +kubebuilder:default:={}
 	Reasoning ReasoningSpec `json:"reasoning,omitempty"`
-	Telegram  TelegramSpec  `json:"telegram"`
+	Telegram  *TelegramSpec `json:"telegram,omitempty"`
+	Web       *WebSpec      `json:"web,omitempty"`
 	// +kubebuilder:default:={}
 	Agent AgentSpec `json:"agent,omitempty"`
 	// +kubebuilder:default:={}
@@ -259,6 +260,7 @@ type NetworkPort struct {
 }
 
 type HermesStatus struct {
+	Web                *WebStatus         `json:"web,omitempty"`
 	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 	AppliedRevision    string             `json:"appliedRevision,omitempty"`
 	ResolvedImage      string             `json:"resolvedImage,omitempty"`

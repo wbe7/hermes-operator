@@ -79,6 +79,9 @@ func (r *HermesReconciler) deleteUID(ctx context.Context, obj client.Object) err
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="",resources=services;serviceaccounts;configmaps;secrets;persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 
 func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, reconcileErr error) {
@@ -93,8 +96,27 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{}, apiFailure("read Hermes", err)
 	}
 	if !h.DeletionTimestamp.IsZero() {
+		if err := r.removeWeb(ctx, h); err != nil {
+			return r.failed(ctx, h, "WebReady", err)
+		}
 		return r.finalize(ctx, h)
 	}
+	publicationSafe := false
+	defer func() {
+		if !publicationSafe {
+			hadPublication := h.Status.Web != nil
+			if err := r.removeWeb(ctx, h); err != nil {
+				result, reconcileErr = r.stopAndFail(ctx, h, "WebReady", err)
+				return
+			}
+			if hadPublication {
+				setCondition(h, "WebReady", metav1.ConditionFalse, "PublicationRemoved", "web publication was removed")
+				if _, err := r.saveStatus(ctx, h); err != nil {
+					result, reconcileErr = ctrl.Result{}, err
+				}
+			}
+		}
+	}()
 	// Every exit that can retain an applied workload, including failed partial
 	// applies and status writes, must enforce credentials and network isolation.
 	// Inspect after apply so valid replacements can recover from revoked sources;
@@ -102,10 +124,12 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	defer func() {
 		if !h.Spec.Suspend {
 			if err := r.checkAppliedDependencies(ctx, h); err != nil {
+				publicationSafe = false
 				result, reconcileErr = r.stopAndFail(ctx, h, "DependenciesReady", err)
 				return
 			}
 			if err := r.checkAppliedNetwork(ctx, h); err != nil {
+				publicationSafe = false
 				result, reconcileErr = r.stopAndFail(ctx, h, "NetworkPolicyReady", err)
 			}
 		}
@@ -119,6 +143,10 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 	if h.Spec.Suspend {
+		if err := r.removeWeb(ctx, h); err != nil {
+			return r.failed(ctx, h, "WebReady", err)
+		}
+		setCondition(h, "WebReady", metav1.ConditionFalse, "Suspended", "web access is suspended")
 		_, err := r.stop(ctx, h)
 		if err != nil {
 			return r.failed(ctx, h, "Ready", err)
@@ -128,16 +156,26 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return r.saveStatus(ctx, h)
 	}
 	setCondition(h, "Suspended", metav1.ConditionFalse, "Reconciled", "installation is active")
-	secrets, err := r.secrets(ctx, h)
-	if err != nil {
-		return r.stopAndFail(ctx, h, "DependenciesReady", err)
-	}
 	release, err := runtimecatalog.Resolve(h.Spec.Version)
 	if err != nil {
 		return r.configurationFailed(ctx, h, problem("UnsupportedVersion", "Hermes version is not supported"))
 	}
 	if err = config.Validate(h, release); err != nil {
 		return r.configurationFailed(ctx, h, problem("InvalidConfiguration", "configuration is invalid"))
+	}
+	if !config.WebEnabled(h) {
+		if err := r.removeWeb(ctx, h); err != nil {
+			return r.failed(ctx, h, "WebReady", err)
+		}
+	} else if err := r.preflightWeb(ctx, h); err != nil {
+		return r.failed(ctx, h, "WebReady", err)
+	}
+	if err := r.ensureWebCredentials(ctx, h); err != nil {
+		return r.stopAndFail(ctx, h, "DependenciesReady", err)
+	}
+	secrets, err := r.secrets(ctx, h)
+	if err != nil {
+		return r.stopAndFail(ctx, h, "DependenciesReady", err)
 	}
 	policy, err := network.Build(h, r.Network)
 	if err != nil {
@@ -200,6 +238,10 @@ func (r *HermesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	if err = r.observePods(ctx, h, current, resources.Revision); err != nil {
 		return r.failed(ctx, h, "Ready", err)
 	}
+	if err = r.reconcileWeb(ctx, h); err != nil {
+		return r.failed(ctx, h, "WebReady", err)
+	}
+	publicationSafe = true
 	if err = r.collectRevisions(ctx, h, current); err != nil {
 		return r.failed(ctx, h, "Ready", err)
 	}

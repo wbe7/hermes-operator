@@ -27,10 +27,7 @@ type binding struct {
 }
 
 func bindings(h *v1.Hermes) []binding {
-	name := h.Spec.Credentials.SecretName
-	if name == "" {
-		name = h.Name + "-hermes-secret"
-	}
+	name := PrimarySecretName(h)
 	ref := func(n, k, def string) corev1.SecretKeySelector {
 		if n == "" {
 			n = name
@@ -40,11 +37,17 @@ func bindings(h *v1.Hermes) []binding {
 		}
 		return corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: n}, Key: k}
 	}
-	tn, tk := "", ""
-	if x := h.Spec.Telegram.BotTokenSecretRef; x != nil {
-		tn, tk = x.Name, x.Key
+	out := []binding{}
+	if h.Spec.Telegram != nil {
+		tn, tk := "", ""
+		if x := h.Spec.Telegram.BotTokenSecretRef; x != nil {
+			tn, tk = x.Name, x.Key
+		}
+		out = append(out, binding{"TELEGRAM_BOT_TOKEN", ref(tn, tk, "TELEGRAM_BOT_TOKEN")})
 	}
-	out := []binding{{"TELEGRAM_BOT_TOKEN", ref(tn, tk, "TELEGRAM_BOT_TOKEN")}}
+	if WebEnabled(h) {
+		out = append(out, binding{"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD", ref("", "WEB_PASSWORD", "")}, binding{"HERMES_DASHBOARD_BASIC_AUTH_SECRET", ref("", "WEB_SESSION_SECRET", "")})
+	}
 	if h.Spec.Model.Auth != "None" {
 		mn, mk := "", ""
 		if x := h.Spec.Model.APIKeySecretRef; x != nil {

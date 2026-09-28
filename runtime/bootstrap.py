@@ -266,7 +266,14 @@ def main():
         print('startup restore failed; gateway was not started', file=sys.stderr)
         raise SystemExit(1) from None
     fix_service_environment(home)
-    os.execv('/opt/hermes/.venv/bin/python', ['/opt/hermes/.venv/bin/python', '-I', '-c', 'import sys; sys.path.insert(0,"/opt/hermes"); from hermes_cli.main import main; main()', 'gateway', 'run', '--no-supervise'])
+    from supervisor import channels, supervise
+    declared = channels(bundle)
+    cli = ['/opt/hermes/.venv/bin/python', '-I', '-c', 'import sys; sys.path.insert(0,"/opt/hermes"); from hermes_cli.main import main; main()']
+    gateway = cli + ['gateway', 'run', '--no-supervise']
+    if declared['web']:
+        dashboard = cli + ['dashboard', '--host', '0.0.0.0', '--port', '9119', '--no-open', '--skip-build', '--isolated']
+        raise SystemExit(supervise({'gateway': gateway, 'dashboard': dashboard}, startup_fd=startup_fd))
+    os.execv(gateway[0], gateway)
 
 
 if __name__ == '__main__':

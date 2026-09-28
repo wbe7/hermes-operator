@@ -23,6 +23,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - pods
   verbs:
   - delete
@@ -41,6 +47,22 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  verbs:
+  - get
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
 - apiGroups:
   - hermes.wbe7.github.io
   resources:

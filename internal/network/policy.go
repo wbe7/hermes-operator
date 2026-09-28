@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	v1alpha1 "github.com/wbe7/hermes-operator/api/v1alpha1"
+	"github.com/wbe7/hermes-operator/internal/config"
 	"github.com/wbe7/hermes-operator/internal/settings"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -23,6 +24,9 @@ func Build(h *v1alpha1.Hermes, cluster settings.NetworkConfig) (*networkingv1.Ne
 		return nil, fmt.Errorf("Hermes UID is required for policy isolation")
 	}
 	if err := cluster.Validate(); err != nil {
+		return nil, err
+	}
+	if err := config.ValidateWeb(h); err != nil {
 		return nil, err
 	}
 	denied := specialRanges()
@@ -47,6 +51,13 @@ func Build(h *v1alpha1.Hermes, cluster settings.NetworkConfig) (*networkingv1.Ne
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
 			Ingress:     []networkingv1.NetworkPolicyIngressRule{},
 		},
+	}
+	if config.WebEnabled(h) && !h.Spec.Suspend {
+		peers := []networkingv1.NetworkPolicyPeer{}
+		for _, peer := range h.Spec.Web.Network.IngressFrom {
+			peers = append(peers, *peer.DeepCopy())
+		}
+		p.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{From: peers, Ports: []networkingv1.NetworkPolicyPort{port(9119, corev1.ProtocolTCP)}}}
 	}
 	for _, root := range []string{"0.0.0.0/0", "2000::/3"} {
 		base := netip.MustParsePrefix(root)

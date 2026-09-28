@@ -11,7 +11,7 @@
 | `image.digest` | digest выбранного варианта из каталога | Если задан, должен быть зарегистрирован для версии Hermes. Workload всегда запускается по digest. |
 | `image.pullPolicy` | `IfNotPresent` | `IfNotPresent` или `Always`. |
 | `image.pullSecrets[]` | `[]` | Имена Secrets в том же namespace. |
-| `credentials.secretName` | `<имя CR>-hermes-secret` | Обычный Secret для model/Telegram refs без явного имени. |
+| `credentials.secretName` | `<имя CR>-hermes-secret` | Основной Secret для model/Telegram refs и Web credentials. |
 | `credentials.env.<ENV>.name/key` | `{}` | Дополнительные явно выбранные Secret keys для поддерживаемого `extraConfig`. |
 | `model.provider` | обязательно | В v1 реализован только `custom`; `auto` запрещён. → `model.provider`. |
 | `model.name` | обязательно | → `model.default`. |
@@ -23,9 +23,19 @@
 | `reasoning.effort` | `xhigh` | → `agent.reasoning_effort`. |
 | `reasoning.overrides` | `{}` | → `agent.reasoning_overrides`; пустая map удаляет сохранённые overrides. |
 | `telegram.botTokenSecretRef.name/key` | обычный Secret / `TELEGRAM_BOT_TOKEN` | Токен выделенного бота. |
-| `telegram.allowedUserIDs[]` | обязательный непустой set | Положительные Telegram sender IDs, не username и не chat IDs. |
+| `telegram` | отсутствует | Включает Telegram; без секции канал выключен. |
+| `telegram.allowedUserIDs[]` | непустой set при наличии telegram | Положительные Telegram sender IDs, не username и не chat IDs. |
 | `telegram.groups.enabled` | `false` | Включает перечисленные группы. |
 | `telegram.groups.allowedChatIDs[]` | `[]`; непустой при enabled | Отрицательные group chat IDs. |
+| `web.enabled` | `false` | Включает native dashboard; независим от Telegram. |
+| `web.routing.mode` | обязательно при enabled | `Subdomain` или `Path`. |
+| `web.routing.baseDomain` | обязательно при enabled | DNS hostname без scheme/port/path. |
+| `web.routing.name` | имя CR | DNS label для поддомена или одного path segment. |
+| `web.gatewayRef.name/sectionName` | обязательно при enabled | Готовый Gateway и HTTPS:443 listener. |
+| `web.gatewayRef.namespace` | namespace CR | Gateway может быть в другом namespace. |
+| `web.auth.username` | `admin` | Логин native password auth. |
+| `web.network.ingressFrom[]` | обязательно при enabled | Ограниченный IPBlock либо непустые namespace+pod selectors; TCP9119. |
+| `web.network.trustedProxyCIDRs[]` | обязательно при enabled | Реальные CIDR прокси для доверия forwarded HTTPS metadata; `/0` запрещён. |
 | `agent.maxTurns` | `50` | → `agent.max_turns`; `0` снимает лимит. |
 | `agent.runBudgetSeconds` | `600` | → `agent.run_budget_seconds`; `0` снимает лимит. |
 | `terminal.timeoutSeconds` | `300` | → `terminal.timeout`; backend/path задаёт оператор. |
@@ -52,7 +62,7 @@
 
 ## Status
 
-`observedGeneration` означает, что generation рассмотрена, а не запущена. `appliedRevision`, `resolvedImage`, `workloadRef` и `storageRef` фиксируют применённую identity. Conditions: `ConfigurationReady`, `DependenciesReady`, `StorageReady`, `NetworkPolicyReady`, `Ready`, `Suspended`, `Degraded`. `Ready=True` требует актуальный revision и Ready Pod.
+`observedGeneration` означает, что generation рассмотрена, а не запущена. `appliedRevision`, `resolvedImage`, `workloadRef` и `storageRef` фиксируют применённую identity. Conditions: `ConfigurationReady`, `DependenciesReady`, `StorageReady`, `NetworkPolicyReady`, `Ready`, `Suspended`, `Degraded`, `WebReady`. `Ready=True` требует актуальный revision, Ready Pod и, при Web, актуальный принятый HTTPRoute. `status.web.url` и `status.web.routeRef` описывают публикацию; DNS/TLS проверяются отдельно. См. [Web guide](../guides/web.md) для credentials, rotation и routing.
 
 Стабильные reasons включают `InvalidConfiguration`, `UnsupportedVersion`, `DependencyNotFound`, `DependencyKeyMissing`, `DependencyIdentityUnknown`, `ResourceConflict`, `StorageIdentityMismatch`, `StoragePending`, `ResizePending`, `ResizeUnsupported`, `GatewayNotReady`, `RolloutInProgress`, `Suspended`, `Reconciled`, `ReconcileError`. Неподдерживаемый provider/API mode относится к `InvalidConfiguration`; startup/bootstrap failure наблюдается как неготовый gateway, а подробность проверяется в Pod logs. Secret values и raw upstream errors в status/Events не записываются.
 

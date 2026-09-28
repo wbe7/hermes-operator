@@ -27,3 +27,14 @@ class ProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with patch('adapters.v20260914._runtime_status', return_value=({}, None)):
                 self.assertFalse(_health(Path(directory), False))
+
+    def test_running_gateway_without_telegram_can_be_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);(home/'state').mkdir()
+            record={'pid':42,'start_time':100,'gateway_state':'running','session_store':{'status':'ok'},'platforms':{}}
+            (home/'state/gateway.heartbeat').write_text(json.dumps({'pid':42,'start_time':100,'monotonic':time.monotonic(),'loop_tick_socket':True}))
+            with patch('adapters.v20260914._runtime_status',return_value=(record,(42,100))),patch('adapters.v20260914._tick',return_value=True),patch('adapters.v20260914._created_at',return_value=99):
+                self.assertTrue(_health(home,True,telegram_enabled=False))
+                self.assertFalse(_health(home,True,telegram_enabled=True))
+                record['session_store']['status']='error'
+                self.assertFalse(_health(home,True,telegram_enabled=False))

@@ -165,7 +165,7 @@ func encodeSourceRefs(h *v1.Hermes, secrets map[types.NamespacedName]*corev1.Sec
 }
 func decodeSourceRefs(obj client.Object) ([]sourceRef, error) {
 	var refs []sourceRef
-	if err := json.Unmarshal([]byte(obj.GetAnnotations()[sourceRefsAnnotation]), &refs); err != nil || len(refs) == 0 {
+	if err := json.Unmarshal([]byte(obj.GetAnnotations()[sourceRefsAnnotation]), &refs); err != nil || refs == nil {
 		return nil, problem("DependencyIdentityUnknown", "applied credential dependency identity is unavailable")
 	}
 	for _, ref := range refs {

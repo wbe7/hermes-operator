@@ -23,12 +23,13 @@ class SnapshotTests(unittest.TestCase):
             db.execute('CREATE TABLE messages (id INTEGER,session_id TEXT,role TEXT,content TEXT,tool_call_id TEXT,tool_calls TEXT,tool_name TEXT,reasoning TEXT,reasoning_content TEXT,platform_message_id TEXT)')
             db.execute("INSERT INTO messages VALUES (1,'session','user','original',NULL,NULL,NULL,NULL,NULL,NULL)");db.commit()
             config={'model':{'default':'declared','provider':'custom'},'agent':{'reasoning_effort':'xhigh'},'personal':{'style':'short'}}
+            adapter=types.ModuleType('adapters.v20260914');adapter.live=lambda home:True
             bootstrap=types.ModuleType('bootstrap');bootstrap.load_runtime_environment=lambda home:None
             cfg=types.ModuleType('hermes_cli.config');cfg.load_config=lambda:config
             provider=types.ModuleType('hermes_cli.runtime_provider');provider.resolve_runtime_provider=lambda **kwargs:{}
             def snapshot():
                 capture=io.StringIO()
-                with patch.dict(sys.modules,{'bootstrap':bootstrap,'hermes_cli':types.ModuleType('hermes_cli'),'hermes_cli.config':cfg,'hermes_cli.runtime_provider':provider}),patch.object(sys,'path',list(sys.path)),contextlib.redirect_stdout(capture):
+                with patch.dict(sys.modules,{'adapters':types.ModuleType('adapters'),'adapters.v20260914':adapter,'bootstrap':bootstrap,'hermes_cli':types.ModuleType('hermes_cli'),'hermes_cli.config':cfg,'hermes_cli.runtime_provider':provider}),patch.object(sys,'path',list(sys.path)),contextlib.redirect_stdout(capture):
                     exec(code.replace('/opt/data',str(home)).replace('/operator/config/input.json',str(home/'input.json')), {})
                 return json.loads(capture.getvalue())
             before=snapshot()
