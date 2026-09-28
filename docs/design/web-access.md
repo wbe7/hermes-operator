@@ -69,7 +69,8 @@
   отдельные поддомены; Path предназначен для одной доверенной группы.
 - Q6: DNS, TLS и Gateway готовит инфраструктура. Оператор создаёт Service, HTTPRoute
   и правила доступа к агенту, ссылаясь на готовый HTTPS listener. README описывает
-  подготовку домена и wildcard; тестовые имена выбираются под готовый сертификат.
+  подготовку домена и wildcard. Последующим уточнением пользователь выбрал именно
+  `agents.s2technologies.ru`, без `ext`; необходимые DNS/TLS готовит инфраструктура.
 
 Эти продуктовые решения также зафиксированы в [ADR 0004](../adr/0004-optional-web-access.md).
 
@@ -220,10 +221,17 @@ dashboard. Состояние на PVC и исходные credentials оста�
    Зафиксировать выполненные и не выполненные live-проверки отдельно.
 
 Тестовая инсталляция — существующий `hermes-operator-test/hermes-smoke` в `berger-apps`;
-её PVC и старый сохранённый PVC не пересоздаются. Gateway — `infra-gateway/external`,
-listener `https-wildcard-ext-s2technologies-ru`. Тестовые адреса:
-`https://hermes-smoke.ext.s2technologies.ru/` и
-`https://agents.ext.s2technologies.ru/hermes-smoke/`.
+её PVC и старый сохранённый PVC не пересоздаются. Gateway — `infra-gateway/external`.
+По уточнению пользователя базовый домен обоих режимов — `agents.s2technologies.ru`,
+без `ext`. Тестовые адреса:
+`https://hermes-smoke.agents.s2technologies.ru/` и
+`https://agents.s2technologies.ru/hermes-smoke/`.
+Пользователь планирует изменить DNS, который на момент исследования направлял
+эту зону на внутренний Gateway. Для Path подходит существующий HTTPS listener `https`
+с сертификатом `*.s2technologies.ru`. Для Subdomain требуется сертификат
+`*.agents.s2technologies.ru` и HTTPS listener внешнего Gateway, обслуживающий его;
+существующий сертификат родительской зоны вложенные имена не покрывает.
+Перед live-тестами повторно проверяются DNS, выбранный listener и TLS обоих адресов.
 Namespace теста понадобится разрешающий label `gateway.berger.dev/external: "true"`.
 Для проверки нескольких web-инсталляций второй Telegram token не нужен; используется
 временная Web-only инсталляция со своим PVC. Любые Telegram-проверки ограничены
