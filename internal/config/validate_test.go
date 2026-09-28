@@ -12,7 +12,7 @@ import (
 
 func fixture() (*v1.Hermes, runtimecatalog.Release) {
 	r, _ := runtimecatalog.Resolve("v2026.9.14")
-	return &v1.Hermes{ObjectMeta: metav1.ObjectMeta{Name: "maria", Namespace: "tenant"}, Spec: v1.HermesSpec{Version: r.Version, Model: v1.ModelSpec{Provider: "custom", Name: "test-model", BaseURL: "https://inference.invalid/v1"}, Telegram: v1.TelegramSpec{AllowedUserIDs: []string{"123"}}}}, r
+	return &v1.Hermes{ObjectMeta: metav1.ObjectMeta{Name: "maria", Namespace: "tenant"}, Spec: v1.HermesSpec{Version: r.Version, Model: v1.ModelSpec{Provider: "custom", Name: "test-model", BaseURL: "https://inference.invalid/v1"}, Telegram: &v1.TelegramSpec{AllowedUserIDs: []string{"123"}}}}, r
 }
 
 func TestOnlyRegisteredImageDigestsAreAccepted(t *testing.T) {

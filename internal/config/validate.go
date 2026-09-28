@@ -55,6 +55,7 @@ var protected = []string{
 	"profiles",
 	"web",
 	"web_ui",
+	"dashboard",
 	"webhook",
 	"api_server",
 }
@@ -76,7 +77,7 @@ var chatID = regexp.MustCompile(`^-[1-9][0-9]*$`)
 
 func invalid(path, reason string) error { return fmt.Errorf("%s: %s", path, reason) }
 func reservedEnv(k string) bool {
-	return reserved[k] || strings.HasPrefix(k, "PYTHON") || strings.HasPrefix(k, "LD_") || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "HERMES_OPERATOR_")
+	return strings.HasPrefix(k, "HERMES_DASHBOARD") || reserved[k] || strings.HasPrefix(k, "PYTHON") || strings.HasPrefix(k, "LD_") || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "HERMES_OPERATOR_")
 }
 func secretField(k string) bool {
 	k = strings.ToLower(k)
@@ -199,22 +200,27 @@ func Validate(h *v1.Hermes, r runtimecatalog.Release) error {
 	if h.Spec.Tools.Enabled != nil && len(h.Spec.Tools.Enabled) == 0 || len(h.Spec.Tools.Enabled) > 128 || len(h.Spec.Tools.Disabled) > 128 {
 		return invalid("spec.tools", "invalid toolset count")
 	}
-	if len(h.Spec.Telegram.AllowedUserIDs) == 0 || len(h.Spec.Telegram.AllowedUserIDs) > 256 {
-		return invalid("spec.telegram.allowedUserIDs", "requires 1 to 256 IDs")
-	}
-	for _, id := range h.Spec.Telegram.AllowedUserIDs {
-		if !userID.MatchString(id) {
-			return invalid("spec.telegram.allowedUserIDs", "invalid sender ID")
+	if h.Spec.Telegram != nil {
+		if len(h.Spec.Telegram.AllowedUserIDs) == 0 || len(h.Spec.Telegram.AllowedUserIDs) > 256 {
+			return invalid("spec.telegram.allowedUserIDs", "requires 1 to 256 IDs")
+		}
+		for _, id := range h.Spec.Telegram.AllowedUserIDs {
+			if !userID.MatchString(id) {
+				return invalid("spec.telegram.allowedUserIDs", "invalid sender ID")
+			}
+		}
+		g := h.Spec.Telegram.Groups
+		if g.Enabled != (len(g.AllowedChatIDs) > 0) || len(g.AllowedChatIDs) > 256 {
+			return invalid("spec.telegram.groups.allowedChatIDs", "nonempty only when enabled")
+		}
+		for _, id := range g.AllowedChatIDs {
+			if !chatID.MatchString(id) {
+				return invalid("spec.telegram.groups.allowedChatIDs", "invalid group ID")
+			}
 		}
 	}
-	g := h.Spec.Telegram.Groups
-	if g.Enabled != (len(g.AllowedChatIDs) > 0) || len(g.AllowedChatIDs) > 256 {
-		return invalid("spec.telegram.groups.allowedChatIDs", "nonempty only when enabled")
-	}
-	for _, id := range g.AllowedChatIDs {
-		if !chatID.MatchString(id) {
-			return invalid("spec.telegram.groups.allowedChatIDs", "invalid group ID")
-		}
+	if err := validateWeb(h); err != nil {
+		return err
 	}
 	for _, name := range h.Spec.Tools.Enabled {
 		for _, off := range h.Spec.Tools.Disabled {

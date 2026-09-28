@@ -69,6 +69,17 @@ func TestHermesAdmission(t *testing.T) {
 	if err := create(t, "valid", func(map[string]any) {}, true); err != nil {
 		t.Fatalf("minimal CR rejected: %v", err)
 	}
+	for _, name := range []string{"no-channels", "disabled-web"} {
+		if err := create(t, name, func(o map[string]any) {
+			spec := o["spec"].(map[string]any)
+			delete(spec, "telegram")
+			if name == "disabled-web" {
+				spec["web"] = map[string]any{"enabled": false}
+			}
+		}, true); err != nil {
+			t.Fatalf("optional channels rejected: %v", err)
+		}
+	}
 	defaulted, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "valid", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)

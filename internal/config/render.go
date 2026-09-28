@@ -19,12 +19,13 @@ type Bundle struct {
 	Revision   string
 }
 type startupInput struct {
-	Schema     int            `json:"schema"`
-	Release    string         `json:"release"`
-	Config     map[string]any `json:"config"`
-	Env        map[string]any `json:"env"`
-	OwnedPaths [][]string     `json:"ownedPaths"`
-	OwnedEnv   []string       `json:"ownedEnv"`
+	Channels   map[string]bool `json:"channels"`
+	Schema     int             `json:"schema"`
+	Release    string          `json:"release"`
+	Config     map[string]any  `json:"config"`
+	Env        map[string]any  `json:"env"`
+	OwnedPaths [][]string      `json:"ownedPaths"`
+	OwnedEnv   []string        `json:"ownedEnv"`
 }
 
 func sortedSet(in []string) []string {
@@ -98,7 +99,7 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 	if err := Validate(h, r); err != nil {
 		return Bundle{}, err
 	}
-	doc := startupInput{Schema: 1, Release: r.Version, Config: map[string]any{}, Env: map[string]any{}}
+	doc := startupInput{Channels: map[string]bool{"telegram": h.Spec.Telegram != nil, "web": WebEnabled(h)}, Schema: 1, Release: r.Version, Config: map[string]any{}, Env: map[string]any{}}
 	data := map[string][]byte{}
 	identities := []secretIdentity{}
 	for _, b := range bindings(h) {
@@ -111,6 +112,9 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 		data[name] = append([]byte{}, s.Data[b.Ref.Key]...)
 		doc.Env[b.Env] = map[string]any{"credential": name}
 		identities = append(identities, secretIdentity{Namespace: id.Namespace, Name: id.Name, Key: b.Ref.Key, UID: s.UID})
+	}
+	if h.Spec.Telegram == nil {
+		doc.Env["TELEGRAM_BOT_TOKEN"] = ""
 	}
 	cfg, _ := extra(h)
 	copyExtra(doc.Config, cfg)
@@ -167,16 +171,20 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 		"gateway.proxy_key":                  nil,
 		"gateway.relay_url":                  "",
 		"gateway.unauthorized_dm_behavior":   "ignore",
-		"gateway.platforms.telegram.enabled": true,
+		"gateway.platforms.telegram.enabled": h.Spec.Telegram != nil,
 		"gateway.platforms.telegram.token":   doc.Env["TELEGRAM_BOT_TOKEN"],
 	}
 	if h.Spec.Tools.Enabled != nil {
 		base["platform_toolsets.telegram"] = sortedSet(h.Spec.Tools.Enabled)
 	}
-	ids := sortedSet(h.Spec.Telegram.AllowedUserIDs)
+	telegram := v1.TelegramSpec{}
+	if h.Spec.Telegram != nil {
+		telegram = *h.Spec.Telegram
+	}
+	ids := sortedSet(telegram.AllowedUserIDs)
 	chats := []string{"__operator_dm_only__"}
-	if h.Spec.Telegram.Groups.Enabled {
-		chats = sortedSet(h.Spec.Telegram.Groups.AllowedChatIDs)
+	if telegram.Groups.Enabled {
+		chats = sortedSet(telegram.Groups.AllowedChatIDs)
 	}
 	tg := map[string]any{
 		"allow_from":               ids,
@@ -195,7 +203,7 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 		base["telegram.extra."+k] = v
 		base["telegram."+k] = v
 	}
-	base["telegram.enabled"] = true
+	base["telegram.enabled"] = h.Spec.Telegram != nil
 	for _, p := range otherPlatforms {
 		base["gateway.platforms."+p+".enabled"] = false
 		base[p+".enabled"] = false
@@ -227,6 +235,7 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 	} {
 		doc.Env[k] = v
 	}
+	renderWeb(h, &doc)
 	ownedLeaves(doc.Config, nil, &doc.OwnedPaths)
 	for k := range doc.Env {
 		doc.OwnedEnv = append(doc.OwnedEnv, k)
