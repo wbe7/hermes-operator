@@ -147,31 +147,53 @@ func (r *HermesReconciler) preflightWeb(ctx context.Context, h *v1.Hermes) error
 	}
 	return nil
 }
-func overlaps(a, b *v1.Hermes) bool {
-	ah, ap, _ := config.WebAddress(a)
-	bh, bp, _ := config.WebAddress(b)
-	return ah == bh && (ap == bp || ap == "" || bp == "")
+
+// installedWebAddress reads the address shape emitted by web.Build. Filters,
+// backend changes and Gateway defaults do not change ownership of an address.
+func installedWebAddress(route *unstructured.Unstructured) (host, path string, ok bool) {
+	hosts, _, _ := unstructured.NestedStringSlice(route.Object, "spec", "hostnames")
+	rules, _, _ := unstructured.NestedSlice(route.Object, "spec", "rules")
+	if len(hosts) != 1 || len(rules) != 1 {
+		return "", "", false
+	}
+	rule, ok := rules[0].(map[string]any)
+	if !ok {
+		return "", "", false
+	}
+	matches, _, _ := unstructured.NestedSlice(rule, "matches")
+	if len(matches) != 1 {
+		return "", "", false
+	}
+	match, ok := matches[0].(map[string]any)
+	if !ok {
+		return "", "", false
+	}
+	kind, _, _ := unstructured.NestedString(match, "path", "type")
+	path, _, _ = unstructured.NestedString(match, "path", "value")
+	if kind != "PathPrefix" || !strings.HasPrefix(path, "/") {
+		return "", "", false
+	}
+	return strings.ToLower(hosts[0]), strings.TrimRight(path, "/"), true
+}
+func addressOverlaps(ah, ap, bh, bp string) bool {
+	return ah == bh && (ap == bp || strings.HasPrefix(ap, bp+"/") || strings.HasPrefix(bp, ap+"/"))
 }
 func (r *HermesReconciler) checkWebAddress(ctx context.Context, h *v1.Hermes) error {
 	list := &v1.HermesList{}
 	if err := r.reader().List(ctx, list); err != nil {
 		return apiFailure("inspect managed web addresses", err)
 	}
-	// A currently installed owned route wins over a new claimant. Otherwise use a
-	// deterministic creation/name ordering, so simultaneous new CRs can converge.
+	host, path, _ := config.WebAddress(h)
 	mine := webresources.Route(h)
-	myInstalled := r.reader().Get(ctx, client.ObjectKeyFromObject(mine), mine) == nil && owned(mine, h)
-	_, desired := webresources.Build(h)
-	if myInstalled {
-		wantHosts, _, _ := unstructured.NestedSlice(desired.Object, "spec", "hostnames")
-		haveHosts, _, _ := unstructured.NestedSlice(mine.Object, "spec", "hostnames")
-		wantRules, _, _ := unstructured.NestedSlice(desired.Object, "spec", "rules")
-		haveRules, _, _ := unstructured.NestedSlice(mine.Object, "spec", "rules")
-		myInstalled = equality.Semantic.DeepEqual(wantHosts, haveHosts) && equality.Semantic.DeepEqual(wantRules, haveRules)
+	err := r.reader().Get(ctx, client.ObjectKeyFromObject(mine), mine)
+	if err != nil && !webAbsent(err) {
+		return apiFailure("inspect current web address", err)
 	}
+	myHost, myPath, valid := installedWebAddress(mine)
+	myInstalled := err == nil && owned(mine, h) && valid && myHost == host && myPath == path
 	for i := range list.Items {
 		other := &list.Items[i]
-		if other.UID == h.UID || other.Spec.Suspend || !other.DeletionTimestamp.IsZero() || !config.WebEnabled(other) || !overlaps(h, other) {
+		if other.UID == h.UID {
 			continue
 		}
 		existing := webresources.Route(other)
@@ -179,9 +201,19 @@ func (r *HermesReconciler) checkWebAddress(ctx context.Context, h *v1.Hermes) er
 		if err != nil && !webAbsent(err) {
 			return apiFailure("inspect competing web address", err)
 		}
-		installed := err == nil && owned(existing, other)
+		// Reserve the actual address until its route is removed or moved, even
+		// when the competing CR already requests a different address.
+		otherHost, otherPath, valid := installedWebAddress(existing)
+		installed := err == nil && owned(existing, other) && valid && addressOverlaps(host, path, otherHost, otherPath)
+		if installed {
+			return problem("WebAddressConflict", "another installation claims this web hostname and path")
+		}
+		if myInstalled || other.Spec.Suspend || !other.DeletionTimestamp.IsZero() || !config.WebEnabled(other) {
+			continue
+		}
+		otherHost, otherPath, _ = config.WebAddress(other)
 		earlier := other.CreationTimestamp.Before(&h.CreationTimestamp) || (other.CreationTimestamp.Equal(&h.CreationTimestamp) && other.Namespace+"/"+other.Name < h.Namespace+"/"+h.Name)
-		if installed || (!myInstalled && earlier) {
+		if earlier && addressOverlaps(host, path, otherHost, otherPath) {
 			return problem("WebAddressConflict", "another installation claims this web hostname and path")
 		}
 	}

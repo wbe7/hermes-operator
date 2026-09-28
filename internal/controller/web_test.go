@@ -166,3 +166,105 @@ func TestWebAddressConflictAndForeignCleanup(t *testing.T) {
 		t.Fatal("foreign route removed")
 	}
 }
+
+func TestWebAddressChangePreservesInstalledOwner(t *testing.T) {
+	for _, mode := range []string{"Path", "Subdomain"} {
+		t.Run(mode, func(t *testing.T) {
+			r, a := unit(t, true)
+			enableWeb(a)
+			a.Spec.Web.Routing.Mode = mode
+			addGateway(t, r, a)
+			if err := r.Update(ctx, a); err != nil {
+				t.Fatal(err)
+			}
+			b := a.DeepCopy()
+			b.Name, b.UID, b.ResourceVersion = "other", "other-uid", ""
+			if err := r.Create(ctx, b); err != nil {
+				t.Fatal(err)
+			}
+			for _, h := range []*v1.Hermes{a, b} {
+				if err := r.reconcileWeb(ctx, h); err != nil {
+					t.Fatal(err)
+				}
+			}
+			b.Spec.Web.Routing.Name = a.Name
+			if err := r.Update(ctx, b); err != nil {
+				t.Fatal(err)
+			}
+			// Reconcile the incumbent first: the claimant still has its OLD route.
+			runReconcile(t, r, a)
+			svc, route := webresources.Build(a)
+			for _, obj := range []client.Object{svc, route} {
+				if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+					t.Fatalf("incumbent publication removed: %v", err)
+				}
+			}
+			if err := r.checkWebAddress(ctx, b); err == nil {
+				t.Fatal("moving claimant accepted occupied address")
+			}
+		})
+	}
+}
+
+// A changed CR must not make its still-published old address available early.
+func TestWebAddressRemainsReservedUntilRouteMoves(t *testing.T) {
+	r, a := unit(t, true)
+	enableWeb(a)
+	if err := r.Update(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcileWeb(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	b := a.DeepCopy()
+	b.Name, b.UID, b.ResourceVersion = "other", "other-uid", ""
+	b.Spec.Web.Routing.Name = a.Name
+	if err := r.Create(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	a.Spec.Web.Routing.Name = "new-address"
+	if err := r.Update(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.checkWebAddress(ctx, b); err == nil {
+		t.Fatal("still-published old address was released")
+	}
+	if err := r.reconcileWeb(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.checkWebAddress(ctx, b); err != nil {
+		t.Fatalf("old address not released after route moved: %v", err)
+	}
+}
+
+func TestWebAddressOwnershipIgnoresRouteFilters(t *testing.T) {
+	r, a := unit(t, true)
+	enableWeb(a)
+	if err := r.Update(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcileWeb(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	b := a.DeepCopy()
+	b.Name, b.UID, b.ResourceVersion = "aaa-earlier", "other-uid", ""
+	b.Spec.Web.Routing.Name = a.Name
+	if err := r.Create(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	route := webresources.Route(a)
+	if err := r.Get(ctx, client.ObjectKeyFromObject(route), route); err != nil {
+		t.Fatal(err)
+	}
+	rules, _, _ := unstructured.NestedSlice(route.Object, "spec", "rules")
+	delete(rules[0].(map[string]any), "filters")
+	if err := unstructured.SetNestedSlice(route.Object, rules, "spec", "rules"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Update(ctx, route); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.checkWebAddress(ctx, a); err != nil {
+		t.Fatalf("filter change lost address ownership: %v", err)
+	}
+}

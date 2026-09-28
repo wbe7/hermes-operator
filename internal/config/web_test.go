@@ -138,3 +138,24 @@ func TestWebUsernameMustMatchUpstreamWithoutTrimming(t *testing.T) {
 		}
 	}
 }
+
+func TestWebListenerSectionName(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		valid bool
+	}{
+		{"https.agents.example.com", true},
+		{strings.Repeat("a", 63) + "." + strings.Repeat("b", 63), true},
+		{strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61), true},
+		{"", false}, {"HTTPS", false}, {"https..agents", false}, {"-https", false},
+		{strings.Repeat("a", 254), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := webFixture(t, validWeb, false)
+			h.Spec.Web.GatewayRef.SectionName = tc.name
+			if err := ValidateWeb(h); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v: %v", tc.valid, err)
+			}
+		})
+	}
+}
