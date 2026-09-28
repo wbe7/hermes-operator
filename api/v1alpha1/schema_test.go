@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1 "github.com/wbe7/hermes-operator/api/v1alpha1"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,6 +80,14 @@ func TestHermesAdmission(t *testing.T) {
 		}, true); err != nil {
 			t.Fatalf("optional channels rejected: %v", err)
 		}
+	}
+	if err := create(t, "typed-disabled-web", func(o map[string]any) {
+		b, _ := json.Marshal(v1.WebSpec{Enabled: false})
+		var web map[string]any
+		_ = json.Unmarshal(b, &web)
+		o["spec"].(map[string]any)["web"] = web
+	}, true); err != nil {
+		t.Fatalf("typed disabled Web rejected: %v", err)
 	}
 	defaulted, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "valid", metav1.GetOptions{})
 	if err != nil {

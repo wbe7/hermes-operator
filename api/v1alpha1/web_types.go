@@ -7,10 +7,10 @@ import networkingv1 "k8s.io/api/networking/v1"
 type WebSpec struct {
 	// +kubebuilder:default=false
 	Enabled    bool           `json:"enabled,omitempty"`
-	Routing    WebRoutingSpec `json:"routing,omitempty"`
-	GatewayRef WebGatewayRef  `json:"gatewayRef,omitempty"`
-	Auth       WebAuthSpec    `json:"auth,omitempty"`
-	Network    WebNetworkSpec `json:"network,omitempty"`
+	Routing    WebRoutingSpec `json:"routing,omitempty,omitzero"`
+	GatewayRef WebGatewayRef  `json:"gatewayRef,omitempty,omitzero"`
+	Auth       WebAuthSpec    `json:"auth,omitempty,omitzero"`
+	Network    WebNetworkSpec `json:"network,omitempty,omitzero"`
 }
 type WebRoutingSpec struct {
 	// +kubebuilder:validation:Enum=Subdomain;Path
