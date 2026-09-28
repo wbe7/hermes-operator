@@ -152,3 +152,5 @@ python3 hack/e2e-web-lifecycle.py --toggle  # Web-only → ни одного к�
 Последние две команды предназначены для временного агента. `--rotate` не
 восстанавливает старый пароль: новый остаётся в основном Secret. `--toggle`
 проверяет сохранение keys и отсутствие Telegram, не сбрасывает PVC.
+
+Результаты проверки на реальном Gateway: [acceptance 2026-09-28](../research/web-acceptance-2026-09-28.md).

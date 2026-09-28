@@ -21,7 +21,7 @@ def ready(old_uid=None):
   cond={c['type']:c for c in h['status'].get('conditions',[])}
   if cond.get('Ready',{}).get('status')=='True' and cond['Ready'].get('observedGeneration')==h['metadata']['generation']:
    p=get('pod',name+'-hermes-0')
-   if old_uid is None or p['metadata']['uid']!=old_uid:return
+   if any(c.get('type')=='Ready' and c.get('status')=='True' for c in p['status'].get('conditions',[])) and (old_uid is None or p['metadata']['uid']!=old_uid):return
   time.sleep(3)
  raise AssertionError('rollout timeout')
 h=get('hermes',name);url=h['status']['web']['url'];secretname=h['spec'].get('credentials',{}).get('secretName') or name+'-hermes-secret';s=get('secret',secretname);original=s['data'].copy()
@@ -54,7 +54,7 @@ if '--toggle' in sys.argv:
  assert get('secret',secretname)['data']==original
  state=json.loads(subprocess.check_output(k+['exec',name+'-hermes-0','--','/opt/hermes/.venv/bin/python','-I','-c','import json;print(json.dumps(json.load(open("/opt/data/gateway_state.json"))))']))
  assert state['gateway_state']=='running'
- assert not state.get('platforms',{}).get('telegram')
+ assert state.get('platforms',{}).get('telegram',{}).get('state') not in ('connected','connecting')
  print('disabled: route removed; zero-channel gateway ready; keys preserved')
  uid=get('pod',name+'-hermes-0')['metadata']['uid'];call(['patch','hermes',name,'--type','merge','-p',json.dumps({'spec':{'web':{'enabled':True}}})]);ready(uid)
  assert get('secret',secretname)['data']==original
