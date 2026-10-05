@@ -58,6 +58,9 @@ func bindings(h *v1.Hermes) []binding {
 	for env, x := range h.Spec.Credentials.Env {
 		out = append(out, binding{env, ref(x.Name, x.Key, "")})
 	}
+	if ref := sttKeyRef(h); ref != nil {
+		out = append(out, binding{"HERMES_STT_API_KEY", *ref})
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Env < out[j].Env })
 	return out
 }

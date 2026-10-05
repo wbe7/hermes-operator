@@ -20,6 +20,13 @@
 | `model.auth` | `APIKey` | `None` только для `custom`; фиктивный model key не нужен. |
 | `model.apiKeySecretRef.name/key` | обычный Secret / `MODEL_API_KEY` | Для custom → `HERMES_MODEL_API_KEY` и его YAML reference. Не задаётся с `auth: None`. |
 | `model.contextLength` | upstream default | → `model.context_length`. |
+| `stt.enabled` | `false`, включая отсутствие секции | Явно включает OpenAI-compatible STT. Typed STT отсутствует в release 0.2.0. |
+| `stt.model` | обязательно при enabled | Отдельная ASR-модель, до 256 символов. → `stt.openai.model`. |
+| `stt.baseURL` | наследует `model.baseURL` | HTTP(S) API prefix без credentials/query/fragment. |
+| `stt.auth` | `Inherit` | `Inherit`, `APIKey`, `None`; см. [правила наследования](../guides/stt.md). |
+| `stt.apiKeySecretRef.name/key` | при отсутствии ref — LLM reference | При явном ref defaults: основной Secret / `STT_API_KEY`. Namespace-local; ошибка ref не включает fallback. |
+| `stt.language` | `ru` | Lowercase код из 2–3 букв или `auto`, убирающий языковую подсказку. |
+| `stt.echoTranscripts` | `true` | Показ отдельной расшифровки голосового сообщения перед ответом. |
 | `reasoning.effort` | `xhigh` | → `agent.reasoning_effort`. |
 | `reasoning.overrides` | `{}` | → `agent.reasoning_overrides`; пустая map удаляет сохранённые overrides. |
 | `telegram.botTokenSecretRef.name/key` | обычный Secret / `TELEGRAM_BOT_TOKEN` | Токен выделенного бота. |

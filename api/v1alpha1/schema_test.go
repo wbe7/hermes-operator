@@ -93,6 +93,30 @@ func TestHermesAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for name, raw := range map[string]string{
+		"stt-defaults":  `{"enabled":true,"model":"qwen3-asr-1.7b"}`,
+		"stt-disabled":  `{}`,
+		"stt-reference": `{"enabled":true,"model":"asr","apiKeySecretRef":{}}`,
+		"stt-none":      `{"enabled":true,"model":"asr","auth":"None","language":"auto","echoTranscripts":false}`,
+	} {
+		if err := create(t, name, func(o map[string]any) {
+			var stt map[string]any
+			_ = json.Unmarshal([]byte(raw), &stt)
+			o["spec"].(map[string]any)["stt"] = stt
+		}, true); err != nil {
+			t.Fatalf("valid STT rejected: %s: %v", name, err)
+		}
+	}
+	sttDefaults, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "stt-defaults", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]any{"language": "ru", "echoTranscripts": true, "auth": "Inherit"} {
+		got, _, _ := unstructured.NestedFieldNoCopy(sttDefaults.Object, "spec", "stt", key)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("STT default %s: %v, want %v", key, got, want)
+		}
+	}
 	defaults := map[string]any{
 		"spec.image.repository":          "docker.io/wbe7/hermes",
 		"spec.model.auth":                "APIKey",
@@ -162,6 +186,25 @@ func TestHermesAdmission(t *testing.T) {
 			o["spec"].(map[string]any)["resources"] = map[string]any{"limits": map[string]any{"memory": "-1Mi"}}
 		},
 	}
+	for name, raw := range map[string]string{
+		"stt-no-model":     `{"enabled":true}`,
+		"stt-blank-model":  `{"enabled":true,"model":"   "}`,
+		"stt-bad-language": `{"enabled":true,"model":"asr","language":"russian"}`,
+		"stt-bad-url":      `{"enabled":true,"model":"asr","baseURL":"https://user:pass@host/v1"}`,
+		"stt-query-url":    `{"enabled":true,"model":"asr","baseURL":"https://host/v1?key=secret"}`,
+		"stt-none-key":     `{"enabled":true,"model":"asr","auth":"None","apiKeySecretRef":{}}`,
+	} {
+		cases[name] = func(o map[string]any) {
+			var stt map[string]any
+			_ = json.Unmarshal([]byte(raw), &stt)
+			o["spec"].(map[string]any)["stt"] = stt
+		}
+	}
+	cases["stt-api-with-keyless-model"] = func(o map[string]any) {
+		s := o["spec"].(map[string]any)
+		s["model"].(map[string]any)["auth"] = "None"
+		s["stt"] = map[string]any{"enabled": true, "model": "asr", "auth": "APIKey"}
+	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			err := create(t, name, mutate, true)
@@ -196,6 +239,9 @@ func TestHermesAdmission(t *testing.T) {
 		}
 	}
 	strictCases := map[string]func(map[string]any){
+		"stt-cross-namespace-ref": func(o map[string]any) {
+			o["spec"].(map[string]any)["stt"] = map[string]any{"enabled": true, "model": "asr", "apiKeySecretRef": map[string]any{"namespace": "other", "key": "STT_API_KEY"}}
+		},
 		"cross-namespace-ref": func(o map[string]any) {
 			o["spec"].(map[string]any)["model"].(map[string]any)["apiKeySecretRef"] = map[string]any{"name": "s", "key": "k", "namespace": "other"}
 		},
@@ -218,7 +264,7 @@ func TestHermesAdmission(t *testing.T) {
 		t.Fatalf("existing unbound claim rejected at admission: %v", err)
 	}
 
-	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml"} {
+	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml", "hermes-stt.yaml"} {
 		t.Run(filename, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(root, "examples", filename))
 			if err != nil {

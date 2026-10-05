@@ -146,6 +146,11 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         if legacy_path.exists():
             legacy = json.loads(legacy_path.read_text())
             reset_channel_overrides(legacy)
+            # The pinned YAML->gateway bridge omits stt_enabled. Its legacy
+            # flat alias otherwise beats the new nested stt.enabled value.
+            for flag in ('stt_enabled', 'stt_echo_transcripts'):
+                if flag in desired:
+                    legacy[flag] = desired[flag]
             atomic_write(legacy_path, json.dumps(legacy))
         atomic_write(config_path, yaml.safe_dump(merged, allow_unicode=True))
         def quote(value):
