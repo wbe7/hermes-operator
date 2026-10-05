@@ -54,14 +54,15 @@ with wave.open(str(audio),'wb') as wav:
  wav.writeframes(b''.join(struct.pack('<h',int(6000*math.sin(2*math.pi*440*n/16000))) for n in range(16000)))
 try: result=transcribe_audio(str(audio))
 finally: server.shutdown();server.server_close()
-assert result.get('success') and result['transcript']=='Проверка сорок два.',result
+assert result.get('success'),result
+if scenario!='upstream-remap': assert result['transcript']=='Проверка сорок два.',result
 assert len(received)==1
 path,header,fields=received[0]
 assert path==('/speech/v1/audio/transcriptions' if scenario=='override' else '/v1/audio/transcriptions')
 assert header=='Bearer '+key
-assert fields['model']==(b'asr-custom' if scenario=='override' else b'qwen3-asr-1.7b')
+assert fields['model']==(b'whisper-1' if scenario=='upstream-remap' else b'asr-custom' if scenario=='override' else b'qwen3-asr-1.7b')
 assert fields.get('language')==({'auto':None,'override':b'en'}.get(scenario,b'ru'))
-assert fields['response_format']==b'json' and fields['file']
+assert fields['response_format']==(b'text' if scenario=='upstream-remap' else b'json') and fields['file']
 '''
 
 with tempfile.TemporaryDirectory() as directory:
@@ -89,3 +90,32 @@ with tempfile.TemporaryDirectory() as directory:
         assert yaml.safe_load(path.read_text())['stt']['personal_note']=='keep'
         assert "unrelated-key" in (home/'.env').read_text()
 print('STT native SDK, inheritance/overrides, language, keyless, disable/re-enable and persistence passed')
+
+# Migration from the released ownership manifest, including absent spec.stt.
+for scenario in ('disabled', 'inherited'):
+    for old_stt in (None, {'openai': None, 'personal_note': 'keep'}):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home/'.operator').mkdir()
+            (home/'.operator/committed.json').write_text(json.dumps({'ownedPaths': [['model','default']], 'ownedEnv': []}))
+            (home/'config.yaml').write_text(yaml.safe_dump({'stt': old_stt, 'personal': 'keep'}))
+            data=json.loads((Path('/fixtures')/(scenario+'.json')).read_text())
+            restore(home,data['bundle'],data['credentials'])
+            result=subprocess.run([sys.executable,'-I','-c',native,str(home),scenario],capture_output=True)
+            assert result.returncode==0, result.stderr.decode()
+            cfg=yaml.safe_load((home/'config.yaml').read_text())
+            assert cfg['personal']=='keep'
+            if old_stt is not None: assert cfg['stt']['personal_note']=='keep'
+print('STT null container migration passed')
+
+# Prove why API admission rejects these exact names: pinned Hermes sends a
+# different multipart model even to a custom endpoint. No upstream patch.
+for model in ('whisper-large-v3', 'whisper-large-v3-turbo', 'distil-whisper-large-v3-en'):
+    with tempfile.TemporaryDirectory() as directory:
+        home=Path(directory)
+        data=json.loads((Path('/fixtures')/'inherited.json').read_text())
+        data['bundle']['config']['stt']['openai']['model']=model
+        restore(home,data['bundle'],data['credentials'])
+        result=subprocess.run([sys.executable,'-I','-c',native,str(home),'upstream-remap'],capture_output=True)
+        assert result.returncode==0, result.stderr.decode()
+print('Pinned upstream Whisper multipart remapping confirmed')

@@ -76,3 +76,8 @@
 ## Telegram limitation
 
 В запрещённой группе text, command и media отбрасываются, а неизвестный sender остаётся запрещён. У pinned upstream есть принятое ограничение: уже открытый старый inline picker разрешённого sender может изменить model/reasoning callback из такой группы. Оператор не содержит patch upstream для этого случая.
+
+The pinned STT backend silently rewrites `whisper-large-v3`,
+`whisper-large-v3-turbo` and `distil-whisper-large-v3-en`. These exact
+`spec.stt.model` values are rejected; use a configured server-side alias instead.
+See [STT model aliases](../guides/stt.md#whisper-model-aliases).

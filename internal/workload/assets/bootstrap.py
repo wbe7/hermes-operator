@@ -54,6 +54,19 @@ def merge_config(current: dict, desired: dict, previous_paths: set[tuple[str, ..
     return result
 
 
+def normalize_stt_containers(current: dict, desired: dict) -> dict:
+    """Pinned Hermes treats null STT containers as empty; keep other collisions."""
+    result = copy.deepcopy(current)
+    if isinstance(desired.get('stt'), dict):
+        if 'stt' in result and result['stt'] is None:
+            result['stt'] = {}
+        stt = result.get('stt')
+        if isinstance(stt, dict) and isinstance(desired['stt'].get('openai'), dict):
+            if 'openai' in stt and stt['openai'] is None:
+                stt['openai'] = {}
+    return result
+
+
 def atomic_write(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.restore-', dir=path.parent)
@@ -126,6 +139,7 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         current = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
         current = normalize_reasoning_map(current or {}, desired)
         current = normalize_model_config(current, desired)
+        current = normalize_stt_containers(current, desired)
         merged = merge_config(current, desired, previous)
         env_path = home / '.env'
         current_env = read_dotenv(env_path)

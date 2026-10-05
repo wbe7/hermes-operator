@@ -187,6 +187,9 @@ func TestHermesAdmission(t *testing.T) {
 		},
 	}
 	for name, raw := range map[string]string{
+		"stt-remap-large":  `{"enabled":true,"model":"whisper-large-v3"}`,
+		"stt-remap-turbo":  `{"enabled":true,"model":"whisper-large-v3-turbo"}`,
+		"stt-remap-distil": `{"enabled":true,"model":"distil-whisper-large-v3-en"}`,
 		"stt-no-model":     `{"enabled":true}`,
 		"stt-blank-model":  `{"enabled":true,"model":"   "}`,
 		"stt-bad-language": `{"enabled":true,"model":"asr","language":"russian"}`,

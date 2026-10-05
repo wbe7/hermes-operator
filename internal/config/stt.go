@@ -54,6 +54,12 @@ func ValidateSTT(h *v1.Hermes) error {
 	if (s.Enabled || s.Model != "") && (strings.TrimSpace(s.Model) == "" || len(s.Model) > 256) {
 		return invalid("spec.stt.model", "requires a nonempty model of at most 256 bytes when enabled")
 	}
+	// Pinned Hermes silently rewrites these names on its OpenAI path, even
+	// with custom endpoints. Require a server-side alias to preserve CR intent.
+	switch s.Model {
+	case "whisper-large-v3", "whisper-large-v3-turbo", "distil-whisper-large-v3-en":
+		return invalid("spec.stt.model", "pinned Hermes rewrites this model to whisper-1; use a different server-side model alias")
+	}
 	if s.Auth != "" && s.Auth != "Inherit" && s.Auth != "APIKey" && s.Auth != "None" {
 		return invalid("spec.stt.auth", "must be Inherit, APIKey or None")
 	}

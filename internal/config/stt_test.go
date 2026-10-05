@@ -185,3 +185,13 @@ func TestSTTValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestSTTRejectsUpstreamRemappedModels(t *testing.T) {
+	for _, model := range []string{"whisper-large-v3", "whisper-large-v3-turbo", "distil-whisper-large-v3-en"} {
+		h, r := fixture()
+		withSTT(t, h, `{"enabled":true,"model":"`+model+`"}`)
+		if err := Validate(h, r); err == nil {
+			t.Fatalf("accepted silently remapped model %s", model)
+		}
+	}
+}

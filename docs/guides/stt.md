@@ -110,3 +110,12 @@ CR получает `InvalidConfiguration`; разрешённые дополн�
 Выкатывайте CRD перед оператором. Обновление оператора меняет startup bundle даже
 для CR без STT: запланируйте рестарты инсталляций. Источники и результаты проверок:
 [STT research и smoke](../research/stt-2026-10-05.md).
+
+### Whisper model aliases
+
+Pinned Hermes rewrites `whisper-large-v3`, `whisper-large-v3-turbo` and
+`distil-whisper-large-v3-en` to `whisper-1` on its OpenAI-compatible backend,
+including custom endpoints. The CRD and controller reject these exact names.
+Configure a different server-side model alias (for example `asr-whisper-turbo`)
+and put that alias in `spec.stt.model`. The alias must actually exist on the
+server and be permitted by the selected API key. `whisper-1` itself is supported.

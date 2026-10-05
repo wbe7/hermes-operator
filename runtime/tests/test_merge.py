@@ -3,6 +3,20 @@ import unittest
 from bootstrap import merge_config
 
 class MergeTests(unittest.TestCase):
+    def test_stt_null_normalization_is_narrow(self):
+        from bootstrap import normalize_stt_containers
+        desired = {'stt': {'openai': {'model': 'declared'}}}
+        current = {'stt': {'openai': None, 'personal': 'keep'}, 'other': None}
+        before = copy.deepcopy(current)
+        normalized = normalize_stt_containers(current, desired)
+        self.assertEqual(current, before)
+        self.assertEqual(normalized, {'stt': {'openai': {}, 'personal': 'keep'}, 'other': None})
+        self.assertEqual(normalize_stt_containers(current, {}), current)
+        for bad in ('personal scalar', ['personal list'], {'model': {'personal': 1}}):
+            normalized = normalize_stt_containers({'stt': {'openai': bad}}, desired)
+            with self.assertRaises(ValueError):
+                merge_config(normalized, desired, set())
+
     def test_scalar_model_normalization_is_narrow_and_does_not_mutate_input(self):
         from adapters.v20260914 import normalize_model_config
         current = {'model':' old-model ', 'personal':{'keep':'yes'}}

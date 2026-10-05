@@ -1362,6 +1362,11 @@ spec:
                     minLength: 1
                     pattern: \S
                     type: string
+                    x-kubernetes-validations:
+                    - message: pinned Hermes rewrites this model to whisper-1; use
+                        a different server-side model alias
+                      rule: '!(self in [''whisper-large-v3'', ''whisper-large-v3-turbo'',
+                        ''distil-whisper-large-v3-en''])'
                 type: object
                 x-kubernetes-validations:
                 - message: stt.model is required when enabled

@@ -10,6 +10,7 @@ type STTSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
 	// +kubebuilder:validation:Pattern=`\S`
+	// +kubebuilder:validation:XValidation:rule="!(self in ['whisper-large-v3', 'whisper-large-v3-turbo', 'distil-whisper-large-v3-en'])",message="pinned Hermes rewrites this model to whisper-1; use a different server-side model alias"
 	Model string `json:"model,omitempty"`
 	// BaseURL inherits model.baseURL when omitted.
 	// +kubebuilder:validation:MaxLength=2048
