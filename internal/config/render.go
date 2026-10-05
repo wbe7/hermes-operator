@@ -236,6 +236,7 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 		doc.Env[k] = v
 	}
 	renderWeb(h, &doc)
+	renderSTT(h, &doc)
 	ownedLeaves(doc.Config, nil, &doc.OwnedPaths)
 	for k := range doc.Env {
 		doc.OwnedEnv = append(doc.OwnedEnv, k)

@@ -29,6 +29,7 @@ type HermesList struct {
 
 // HermesSpec is the declarative startup contract.
 // +kubebuilder:validation:XValidation:rule="has(self.storage.create) != has(self.storage.existingClaim)",message="exactly one of storage.create or storage.existingClaim is required"
+// +kubebuilder:validation:XValidation:rule="!has(self.stt) || !self.stt.enabled || self.stt.auth != 'APIKey' || has(self.stt.apiKeySecretRef) || self.model.auth != 'None'",message="STT APIKey requires an explicit reference when model auth is None"
 type HermesSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	Version string `json:"version"`
@@ -36,6 +37,7 @@ type HermesSpec struct {
 	Image       ImageSpec       `json:"image,omitempty"`
 	Credentials CredentialsSpec `json:"credentials,omitempty"`
 	Model       ModelSpec       `json:"model"`
+	STT         *STTSpec        `json:"stt,omitempty"`
 	// +kubebuilder:default:={}
 	Reasoning ReasoningSpec `json:"reasoning,omitempty"`
 	Telegram  *TelegramSpec `json:"telegram,omitempty"`

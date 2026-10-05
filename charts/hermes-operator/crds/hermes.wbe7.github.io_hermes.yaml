@@ -1312,6 +1312,73 @@ spec:
                   rule: '!has(oldSelf.create) || has(self.create)'
                 - message: storage source is immutable
                   rule: '!has(oldSelf.existingClaim) || self.existingClaim == oldSelf.existingClaim'
+              stt:
+                description: STTSpec configures the pinned Hermes OpenAI-compatible
+                  transcription backend.
+                properties:
+                  apiKeySecretRef:
+                    properties:
+                      key:
+                        default: STT_API_KEY
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[-._a-zA-Z0-9]+$
+                        type: string
+                      name:
+                        description: Name defaults to the installation's primary Secret,
+                          in the same namespace.
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                        type: string
+                    type: object
+                  auth:
+                    default: Inherit
+                    description: Inherit uses an explicit STT reference first, otherwise
+                      model authentication.
+                    enum:
+                    - Inherit
+                    - APIKey
+                    - None
+                    type: string
+                  baseURL:
+                    description: BaseURL inherits model.baseURL when omitted.
+                    maxLength: 2048
+                    type: string
+                  echoTranscripts:
+                    default: true
+                    type: boolean
+                  enabled:
+                    default: false
+                    type: boolean
+                  language:
+                    default: ru
+                    description: Auto omits the language hint sent to the transcription
+                      server.
+                    pattern: ^(auto|[a-z]{2,3})$
+                    type: string
+                  model:
+                    maxLength: 256
+                    minLength: 1
+                    pattern: \S
+                    type: string
+                    x-kubernetes-validations:
+                    - message: pinned Hermes rewrites this model to whisper-1; use
+                        a different server-side model alias
+                      rule: '!(self in [''whisper-large-v3'', ''whisper-large-v3-turbo'',
+                        ''distil-whisper-large-v3-en''])'
+                type: object
+                x-kubernetes-validations:
+                - message: stt.model is required when enabled
+                  rule: '!self.enabled || has(self.model)'
+                - message: STT apiKeySecretRef must be absent with auth None
+                  rule: self.auth != 'None' || !has(self.apiKeySecretRef)
+                - message: STT baseURL must be absolute HTTP(S) without credentials,
+                    query or fragment
+                  rule: '!has(self.baseURL) || (isURL(self.baseURL) && (url(self.baseURL).getScheme()
+                    == ''http'' || url(self.baseURL).getScheme() == ''https'') &&
+                    size(url(self.baseURL).getHost()) > 0 && !self.baseURL.contains(''@'')
+                    && !self.baseURL.contains(''?'') && !self.baseURL.contains(''#''))'
               suspend:
                 default: false
                 type: boolean
@@ -1603,6 +1670,10 @@ spec:
             x-kubernetes-validations:
             - message: exactly one of storage.create or storage.existingClaim is required
               rule: has(self.storage.create) != has(self.storage.existingClaim)
+            - message: STT APIKey requires an explicit reference when model auth is
+                None
+              rule: '!has(self.stt) || !self.stt.enabled || self.stt.auth != ''APIKey''
+                || has(self.stt.apiKeySecretRef) || self.model.auth != ''None'''
           status:
             properties:
               appliedRevision:

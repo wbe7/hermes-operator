@@ -58,6 +58,11 @@ Secret-значения не попадают в ConfigMap, CR/status, Events и
 
 ## 4. Telegram
 
+Расширение STT от 2026-10-05 задаётся через `spec.stt`; принятый контракт,
+наследование и правила совместимости описаны в [STT design](stt.md), поля — в
+[API reference](../reference/hermes-v1alpha1.md), миграция — в [STT guide](../guides/stt.md).
+Отсутствие секции означает управляемое выключение STT.
+
 | Поле | Тип / default | Поведение |
 | --- | --- | --- |
 | `telegram.botTokenSecretRef` | SecretKeyRef, default key `TELEGRAM_BOT_TOKEN` | Токен выделенного бота. |
