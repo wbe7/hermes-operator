@@ -20,7 +20,7 @@
 | `model.auth` | `APIKey` | `None` только для `custom`; фиктивный model key не нужен. |
 | `model.apiKeySecretRef.name/key` | обычный Secret / `MODEL_API_KEY` | Для custom → `HERMES_MODEL_API_KEY` и его YAML reference. Не задаётся с `auth: None`. |
 | `model.contextLength` | upstream default | → `model.context_length`. |
-| `stt.enabled` | `false`, включая отсутствие секции | Явно включает OpenAI-compatible STT. Typed STT отсутствует в release 0.2.0. |
+| `stt.enabled` | `false`, включая отсутствие секции | Явно включает OpenAI-compatible STT. Typed STT поддерживается начиная с release 0.3.0. |
 | `stt.model` | обязательно при enabled | Отдельная ASR-модель, до 256 символов. → `stt.openai.model`. |
 | `stt.baseURL` | наследует `model.baseURL` | HTTP(S) API prefix без credentials/query/fragment. |
 | `stt.auth` | `Inherit` | `Inherit`, `APIKey`, `None`; см. [правила наследования](../guides/stt.md). |
