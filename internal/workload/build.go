@@ -70,10 +70,10 @@ func Build(h *v1.Hermes, release runtimecatalog.Release, bundle config.Bundle, c
 		Name: "hermes", Image: repository + "@" + digest, ImagePullPolicy: pull,
 		Command:         []string{"/opt/hermes/.venv/bin/python", "-I", "/operator/runtime/bootstrap.py"},
 		WorkingDir:      "/opt/hermes",
-		Env:             []corev1.EnvVar{{Name: "HOME", Value: "/opt/data"}, {Name: "HERMES_HOME", Value: "/opt/data"}, {Name: "PYTHONDONTWRITEBYTECODE", Value: "1"}},
+		Env:             []corev1.EnvVar{{Name: "HOME", Value: "/opt/data"}, {Name: "HERMES_HOME", Value: "/opt/data"}, {Name: "TMPDIR", Value: "/opt/data/.cache/tmp"}, {Name: "PYTHONDONTWRITEBYTECODE", Value: "1"}},
 		SecurityContext: &corev1.SecurityContext{AllowPrivilegeEscalation: ptr.To(false), ReadOnlyRootFilesystem: ptr.To(true), Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}},
 		Resources:       resources,
-		VolumeMounts:    []corev1.VolumeMount{{Name: "home", MountPath: "/opt/data"}, {Name: "tmp", MountPath: "/tmp"}, {Name: "config", MountPath: "/operator/config", ReadOnly: true}, {Name: "credentials", MountPath: "/operator/credentials", ReadOnly: true}, {Name: "runtime", MountPath: "/operator/runtime", ReadOnly: true}},
+		VolumeMounts:    []corev1.VolumeMount{{Name: "home", MountPath: "/opt/data"}, {Name: "tmp", MountPath: "/tmp"}, {Name: "tmp", MountPath: "/opt/data/.cache/tmp"}, {Name: "config", MountPath: "/operator/config", ReadOnly: true}, {Name: "credentials", MountPath: "/operator/credentials", ReadOnly: true}, {Name: "runtime", MountPath: "/operator/runtime", ReadOnly: true}},
 		StartupProbe:    probe("live", 10, 60), ReadinessProbe: probe("ready", 10, 3), LivenessProbe: probe("live", 30, 3),
 	}
 	template := corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: maps.Clone(labels)}, Spec: corev1.PodSpec{

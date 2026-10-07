@@ -114,7 +114,15 @@ func TestLivePodIsolationDriftIsRejected(t *testing.T) {
 			p.Spec.Volumes = append(p.Spec.Volumes, corev1.Volume{Name: "host", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/"}}})
 		},
 		"changed-volume-source": func(p *corev1.Pod) { p.Spec.Volumes[0].PersistentVolumeClaim.ClaimName = "other-home" },
-		"writable-input-mount":  func(p *corev1.Pod) { p.Spec.Containers[0].VolumeMounts[2].ReadOnly = false },
+		"writable-input-mount": func(p *corev1.Pod) {
+			for i := range p.Spec.Containers[0].VolumeMounts {
+				if p.Spec.Containers[0].VolumeMounts[i].MountPath == "/operator/config" {
+					p.Spec.Containers[0].VolumeMounts[i].ReadOnly = false
+					return
+				}
+			}
+			t.Fatal("missing configuration mount")
+		},
 		"injected-mount": func(p *corev1.Pod) {
 			p.Spec.Containers[0].VolumeMounts = append(p.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{Name: "home", MountPath: "/unexpected"})
 		},
