@@ -26,7 +26,7 @@ generate: generate-runtime-assets $(CONTROLLER_GEN)
 	$(GOFLAGS_ENV) $(CONTROLLER_GEN) object:headerFile= paths=./api/...
 
 manifests: $(CONTROLLER_GEN)
-	$(GOFLAGS_ENV) $(CONTROLLER_GEN) crd:crdVersions=v1 rbac:roleName=hermes-operator paths=./... output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/rbac
+	$(GOFLAGS_ENV) $(CONTROLLER_GEN) crd:crdVersions=v1,allowDangerousTypes=true rbac:roleName=hermes-operator paths=./... output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/rbac
 
 test-unit:
 	$(GOFLAGS_ENV) $(GO) test ./internal/...

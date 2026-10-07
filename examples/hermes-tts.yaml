@@ -1,0 +1,21 @@
+apiVersion: hermes.wbe7.github.io/v1alpha1
+kind: Hermes
+metadata:
+  name: maria
+  namespace: hermes-users
+spec:
+  version: v2026.9.14
+  model:
+    provider: custom
+    name: tenant-model
+    baseURL: https://inference.example.com/v1
+  tts:
+    enabled: true
+    model: fish-s2-pro
+    voice: default
+    # URL and key inherit model settings. Defaults: responseMode VoiceOnly, speed 1.0; no language hint.
+  telegram:
+    allowedUserIDs: ["123456789"]
+  storage:
+    create:
+      size: 10Gi

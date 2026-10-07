@@ -67,6 +67,30 @@ def normalize_stt_containers(current: dict, desired: dict) -> dict:
     return result
 
 
+def normalize_tts_containers(current: dict, desired: dict) -> dict:
+    result = copy.deepcopy(current)
+    for key in ('tts', 'voice'):
+        if isinstance(desired.get(key), dict) and key in result and result[key] is None:
+            result[key] = {}
+    tts = result.get('tts')
+    if isinstance(tts, dict) and isinstance(desired.get('tts'), dict) and isinstance(desired['tts'].get('openai'), dict):
+        if 'openai' in tts and tts['openai'] is None:
+            tts['openai'] = {}
+    return result
+
+
+def restore_voice_modes(home: Path, descriptor: dict):
+    import re
+    mode, chats = descriptor.get('mode'), descriptor.get('chats')
+    if mode not in ('off', 'voice_only', 'all') or not isinstance(chats, list):
+        raise ValueError('invalid managed voice modes')
+    if any(not isinstance(chat, str) or not re.fullmatch(r'-?[1-9][0-9]*', chat) for chat in chats):
+        raise ValueError('invalid managed voice chat')
+    # This file holds only delivery preferences, never conversation history.
+    # Replacing it retires overrides for removed chats as well as /voice edits.
+    atomic_write(home / 'gateway_voice_mode.json', json.dumps({'telegram:' + chat: mode for chat in chats}, sort_keys=True))
+
+
 def atomic_write(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.restore-', dir=path.parent)
@@ -140,6 +164,7 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         current = normalize_reasoning_map(current or {}, desired)
         current = normalize_model_config(current, desired)
         current = normalize_stt_containers(current, desired)
+        current = normalize_tts_containers(current, desired)
         merged = merge_config(current, desired, previous)
         env_path = home / '.env'
         current_env = read_dotenv(env_path)
@@ -156,6 +181,8 @@ def _restore(home: Path, bundle: dict, credentials: dict[str, str]) -> None:
         reset_telegram_pairing(home, desired)
         reset_provider_credentials(home, merged)
         reset_channel_overrides(merged)
+        if "voice" in bundle:
+            restore_voice_modes(home, bundle["voice"])
         legacy_path = home / 'gateway.json'
         if legacy_path.exists():
             legacy = json.loads(legacy_path.read_text())

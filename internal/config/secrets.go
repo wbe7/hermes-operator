@@ -58,6 +58,9 @@ func bindings(h *v1.Hermes) []binding {
 	for env, x := range h.Spec.Credentials.Env {
 		out = append(out, binding{env, ref(x.Name, x.Key, "")})
 	}
+	if ref := ttsKeyRef(h); ref != nil {
+		out = append(out, binding{"HERMES_TTS_API_KEY", *ref})
+	}
 	if ref := sttKeyRef(h); ref != nil {
 		out = append(out, binding{"HERMES_STT_API_KEY", *ref})
 	}

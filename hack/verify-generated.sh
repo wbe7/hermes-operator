@@ -28,7 +28,7 @@ mkdir -p "$tmp/repo/config/crd/bases" "$tmp/repo/internal/workload/assets"
   cd "$tmp/repo"
   python3 internal/workload/generate_assets.py
   "$controller_gen" object:headerFile= paths=./api/...
-  "$controller_gen" crd:crdVersions=v1 rbac:roleName=hermes-operator paths=./... \
+  "$controller_gen" crd:crdVersions=v1,allowDangerousTypes=true rbac:roleName=hermes-operator paths=./... \
     output:crd:artifacts:config=config/crd/bases \
     output:rbac:artifacts:config=config/rbac
 )

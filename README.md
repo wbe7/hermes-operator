@@ -11,6 +11,7 @@
 - Оригинальный Hermes без изменений исходного кода; образ `wbe7/hermes` на базе официального с готовым браузером, офисными/PDF инструментами и OCR для amd64/arm64.
 - Telegram и Web — независимые опциональные каналы; допустимы оба или ни одного. Web публикуется через готовый Gateway, с native авторизацией и credentials в основном Secret. Релиз `0.1.0` ещё не содержит Web.
 - Эталонные модель, reasoning, Telegram-подключение и другие настройки задаются CR; credentials хранятся в Secrets. Runtime config writable, а перед каждым запуском заданные параметры восстанавливаются.
+- [Синтез речи (TTS)](docs/guides/tts.md): OpenAI-compatible подключение, голос, скорость и режимы ответа. В разработке; в release 0.3.0 отсутствует.
 - [Распознавание речи (STT)](docs/guides/stt.md) включается через CR: отдельная ASR-модель, наследование URL/ключа LLM или явные overrides, русский язык по умолчанию. Доступно начиная с `0.3.0`; при отсутствии `spec.stt` транскрибация выключена.
 - Первичная персональная настройка, SOUL, личность и пользовательские инструкции доступны пользователю внутри агента и сохраняются на PVC.
 - Восстановление конфигурации не сбрасывает SOUL, skills, память, историю, workspace и пользовательские ключи config.
@@ -121,7 +122,7 @@ manifest содержит amd64 и arm64. Digest одной архитектур
     DOCKER_DEFAULT_PLATFORM="linux/$arch" HERMES_TOOLS_IMAGE="$HERMES_IMAGE" make test-hermes-image
     DOCKER_DEFAULT_PLATFORM="linux/$arch" HERMES_RUNTIME_IMAGE="$HERMES_IMAGE" make test-runtime
     DOCKER_DEFAULT_PLATFORM="linux/$arch" HERMES_RUNTIME_IMAGE="$HERMES_IMAGE" \
-      HERMES_RUNTIME_TEST=1 go test -count=1 -run 'Test(OfficialRuntime|STTOfficialRuntime)$' -v ./internal/config
+      HERMES_RUNTIME_TEST=1 go test -count=1 -run 'Test(OfficialRuntime|STTOfficialRuntime|TTSOfficialRuntime)$' -v ./internal/config
   done
 )
 ```

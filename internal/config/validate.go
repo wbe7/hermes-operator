@@ -16,6 +16,7 @@ import (
 // Version-specific exclusions supplement the exact leaves rendered below. Root
 // aliases and auth/provider routing containers can bypass a seemingly safe leaf.
 var protected = []string{
+	"tts.provider", "tts.use_gateway", "tts.openai", "tts.speed", "tts.enabled", "voice.auto_tts", "gateway.voice", "gateway.tts",
 	"stt.enabled", "stt.provider", "stt.use_gateway", "stt.language", "stt.echo_transcripts", "stt.openai",
 	"stt_enabled", "stt_echo_transcripts",
 	"gateway.stt", "gateway.stt_enabled", "gateway.stt_echo_transcripts",
@@ -80,7 +81,7 @@ var chatID = regexp.MustCompile(`^-[1-9][0-9]*$`)
 
 func invalid(path, reason string) error { return fmt.Errorf("%s: %s", path, reason) }
 func reservedEnv(k string) bool {
-	if k == "HERMES_STT_API_KEY" || k == "HERMES_LOCAL_STT_LANGUAGE" || k == "STT_OPENAI_BASE_URL" {
+	if k == "HERMES_TTS_API_KEY" || k == "HERMES_STT_API_KEY" || k == "HERMES_LOCAL_STT_LANGUAGE" || k == "STT_OPENAI_BASE_URL" {
 		return true
 	}
 	return strings.HasPrefix(k, "HERMES_DASHBOARD") || reserved[k] || strings.HasPrefix(k, "PYTHON") || strings.HasPrefix(k, "LD_") || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "HERMES_OPERATOR_")
@@ -226,6 +227,9 @@ func Validate(h *v1.Hermes, r runtimecatalog.Release) error {
 		}
 	}
 	if err := ValidateWeb(h); err != nil {
+		return err
+	}
+	if err := ValidateTTS(h); err != nil {
 		return err
 	}
 	if err := ValidateSTT(h); err != nil {

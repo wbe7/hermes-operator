@@ -81,3 +81,19 @@ The pinned STT backend silently rewrites `whisper-large-v3`,
 `whisper-large-v3-turbo` and `distil-whisper-large-v3-en`. These exact
 `spec.stt.model` values are rejected; use a configured server-side alias instead.
 See [STT model aliases](../guides/stt.md#whisper-model-aliases).
+
+## TTS (development)
+
+`spec.tts` is optional and disabled when absent; not available in release 0.3.0.
+See [TTS configuration](../guides/tts.md) and [example](../../examples/hermes-tts.yaml).
+
+| Field | Default | Contract |
+| --- | --- | --- |
+| enabled | false | Explicit TTS opt-in |
+| model / voice | — | Required nonblank strings when enabled, max 256 |
+| baseURL | model.baseURL | Absolute HTTP(S), no userinfo/query/fragment |
+| auth | Inherit | Inherit / APIKey / None, same precedence as STT |
+| apiKeySecretRef | model reference | Namespace-local; explicit empty ref selects primary Secret/TTS_API_KEY |
+| responseMode | VoiceOnly | OnRequest / VoiceOnly / All |
+| speed | 1.0 | Numeric multiplier from 0.25 to 4 |
+| language | unset | Optional server-supported lang_code hint, max 64 |

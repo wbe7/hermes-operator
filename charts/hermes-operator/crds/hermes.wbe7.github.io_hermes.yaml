@@ -1453,6 +1453,89 @@ spec:
                 - message: enabled and disabled toolsets must not overlap
                   rule: '!has(self.enabled) || !has(self.disabled) || !self.enabled.exists(x,
                     x in self.disabled)'
+              tts:
+                description: TTSSpec configures the pinned Hermes OpenAI-compatible
+                  speech synthesis backend.
+                properties:
+                  apiKeySecretRef:
+                    properties:
+                      key:
+                        default: TTS_API_KEY
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[-._a-zA-Z0-9]+$
+                        type: string
+                      name:
+                        description: Name defaults to the installation's primary Secret,
+                          in the same namespace.
+                        maxLength: 253
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                        type: string
+                    type: object
+                  auth:
+                    default: Inherit
+                    description: Inherit uses an explicit TTS reference first, otherwise
+                      model authentication.
+                    enum:
+                    - Inherit
+                    - APIKey
+                    - None
+                    type: string
+                  baseURL:
+                    description: BaseURL inherits model.baseURL when omitted.
+                    maxLength: 2048
+                    type: string
+                  enabled:
+                    default: false
+                    type: boolean
+                  language:
+                    description: Language is forwarded as native lang_code; support
+                      depends on the server.
+                    maxLength: 64
+                    minLength: 1
+                    pattern: \S
+                    type: string
+                  model:
+                    maxLength: 256
+                    minLength: 1
+                    pattern: \S
+                    type: string
+                  responseMode:
+                    default: VoiceOnly
+                    enum:
+                    - OnRequest
+                    - VoiceOnly
+                    - All
+                    type: string
+                  speed:
+                    default: 1
+                    description: Speed is a fractional playback multiplier, constrained
+                      by admission.
+                    maximum: 4
+                    minimum: 0.25
+                    type: number
+                  voice:
+                    description: Voice is a provider-specific voice name or registered
+                      ID.
+                    maxLength: 256
+                    minLength: 1
+                    pattern: \S
+                    type: string
+                type: object
+                x-kubernetes-validations:
+                - message: tts.voice is required when enabled
+                  rule: '!self.enabled || has(self.voice)'
+                - message: tts.model is required when enabled
+                  rule: '!self.enabled || has(self.model)'
+                - message: TTS apiKeySecretRef must be absent with auth None
+                  rule: self.auth != 'None' || !has(self.apiKeySecretRef)
+                - message: TTS baseURL must be absolute HTTP(S) without credentials,
+                    query or fragment
+                  rule: '!has(self.baseURL) || (isURL(self.baseURL) && (url(self.baseURL).getScheme()
+                    == ''http'' || url(self.baseURL).getScheme() == ''https'') &&
+                    size(url(self.baseURL).getHost()) > 0 && !self.baseURL.contains(''@'')
+                    && !self.baseURL.contains(''?'') && !self.baseURL.contains(''#''))'
               version:
                 minLength: 1
                 type: string
@@ -1674,6 +1757,10 @@ spec:
                 None
               rule: '!has(self.stt) || !self.stt.enabled || self.stt.auth != ''APIKey''
                 || has(self.stt.apiKeySecretRef) || self.model.auth != ''None'''
+            - message: TTS APIKey requires an explicit reference when model auth is
+                None
+              rule: '!has(self.tts) || !self.tts.enabled || self.tts.auth != ''APIKey''
+                || has(self.tts.apiKeySecretRef) || self.model.auth != ''None'''
           status:
             properties:
               appliedRevision:
