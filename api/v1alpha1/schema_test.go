@@ -107,6 +107,33 @@ func TestHermesAdmission(t *testing.T) {
 			t.Fatalf("valid STT rejected: %s: %v", name, err)
 		}
 	}
+	for name, raw := range map[string]string{
+		"tts-defaults": `{"enabled":true,"model":"fish-s2-pro","voice":"default"}`,
+		"tts-fraction": `{"enabled":true,"model":"speech","voice":"v","speed":1.25,"language":"ru"}`,
+		"tts-disabled": `{}`,
+	} {
+		if err := create(t, name, func(o map[string]any) {
+			var v map[string]any
+			_ = json.Unmarshal([]byte(raw), &v)
+			o["spec"].(map[string]any)["tts"] = v
+		}, true); err != nil {
+			t.Fatalf("valid TTS rejected: %v", err)
+		}
+	}
+	ttsDefaults, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "tts-defaults", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]any{"auth": "Inherit", "responseMode": "VoiceOnly"} {
+		got, _, _ := unstructured.NestedFieldNoCopy(ttsDefaults.Object, "spec", "tts", key)
+		if got != want {
+			t.Fatalf("TTS default %s: %v", key, got)
+		}
+	}
+	speed, _, _ := unstructured.NestedFieldNoCopy(ttsDefaults.Object, "spec", "tts", "speed")
+	if fmt.Sprint(speed) != "1" {
+		t.Fatalf("TTS speed default: %v", speed)
+	}
 	sttDefaults, err := dynamicClient.Resource(hermesGVR).Namespace("schema-test").Get(ctx, "stt-defaults", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -208,6 +235,27 @@ func TestHermesAdmission(t *testing.T) {
 		s["model"].(map[string]any)["auth"] = "None"
 		s["stt"] = map[string]any{"enabled": true, "model": "asr", "auth": "APIKey"}
 	}
+	for name, raw := range map[string]string{
+		"tts-model-required": `{"enabled":true,"voice":"v"}`,
+		"tts-voice-required": `{"enabled":true,"model":"m"}`,
+		"tts-low-speed":      `{"speed":0.24}`,
+		"tts-high-speed":     `{"speed":4.1}`,
+		"tts-string-speed":   `{"speed":"1.5"}`,
+		"tts-bad-mode":       `{"responseMode":"other"}`,
+		"tts-none-ref":       `{"auth":"None","apiKeySecretRef":{}}`,
+		"tts-url-userinfo":   `{"baseURL":"https://a:b@host/v1"}`,
+	} {
+		cases[name] = func(o map[string]any) {
+			var v map[string]any
+			_ = json.Unmarshal([]byte(raw), &v)
+			o["spec"].(map[string]any)["tts"] = v
+		}
+	}
+	cases["tts-keyless-model"] = func(o map[string]any) {
+		s := o["spec"].(map[string]any)
+		s["model"].(map[string]any)["auth"] = "None"
+		s["tts"] = map[string]any{"enabled": true, "model": "m", "voice": "v", "auth": "APIKey"}
+	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			err := create(t, name, mutate, true)
@@ -267,7 +315,7 @@ func TestHermesAdmission(t *testing.T) {
 		t.Fatalf("existing unbound claim rejected at admission: %v", err)
 	}
 
-	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml", "hermes-stt.yaml"} {
+	for i, filename := range []string{"hermes-minimal.yaml", "hermes-existing-pvc.yaml", "hermes-local-inference.yaml", "hermes-web-subdomain.yaml", "hermes-web-path.yaml", "hermes-stt.yaml", "hermes-tts.yaml"} {
 		t.Run(filename, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(root, "examples", filename))
 			if err != nil {

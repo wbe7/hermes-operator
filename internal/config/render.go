@@ -19,6 +19,7 @@ type Bundle struct {
 	Revision   string
 }
 type startupInput struct {
+	Voice      *voiceInput     `json:"voice,omitempty"`
 	Channels   map[string]bool `json:"channels"`
 	Schema     int             `json:"schema"`
 	Release    string          `json:"release"`
@@ -237,6 +238,7 @@ func Render(h *v1.Hermes, r runtimecatalog.Release, secrets map[types.Namespaced
 	}
 	renderWeb(h, &doc)
 	renderSTT(h, &doc)
+	renderTTS(h, &doc)
 	ownedLeaves(doc.Config, nil, &doc.OwnedPaths)
 	for k := range doc.Env {
 		doc.OwnedEnv = append(doc.OwnedEnv, k)
