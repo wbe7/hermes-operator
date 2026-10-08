@@ -56,6 +56,9 @@ func TestBuildSecurityAndStartup(t *testing.T) {
 	for _, e := range c.Env {
 		env[e.Name] = e.Value
 	}
+	if env["TMPDIR"] != "/opt/data/.cache/tmp" {
+		t.Fatal("automatic TTS temp files must stay within the Hermes safe-write root")
+	}
 	if env["HOME"] != "/opt/data" || env["HERMES_HOME"] != "/opt/data" {
 		t.Fatal("full home")
 	}
@@ -65,6 +68,9 @@ func TestBuildSecurityAndStartup(t *testing.T) {
 		if m.SubPath != "" {
 			t.Fatal("partial mount")
 		}
+	}
+	if mounts[env["TMPDIR"]].Name != "tmp" || mounts[env["TMPDIR"]].ReadOnly {
+		t.Fatal("safe temporary path must use the bounded ephemeral tmp volume")
 	}
 	for _, path := range []string{"/operator/config", "/operator/credentials", "/operator/runtime"} {
 		if !mounts[path].ReadOnly {

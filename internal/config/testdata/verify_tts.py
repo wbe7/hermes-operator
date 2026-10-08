@@ -9,12 +9,18 @@ sys.path[:0]=['/runtime','/opt/hermes']
 from bootstrap import restore
 
 native=r'''
-import json,sys,threading,subprocess,types
+import asyncio,json,os,sys,threading,subprocess,types
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,HTTPServer
 sys.path[:0]=['/runtime','/opt/hermes']
 from bootstrap import load_runtime_environment
-home=Path(sys.argv[1]);scenario=sys.argv[2];load_runtime_environment(home)
+home=Path(sys.argv[1]);scenario=sys.argv[2]
+# Match the Pod's safe-write root and mounted ephemeral TMPDIR. Without a
+# safe TMPDIR, manual synthesis works but the automatic reply silently fails.
+os.environ['HERMES_WRITE_SAFE_ROOT']=str(home)
+os.environ['TMPDIR']=str(home/'.cache/tmp')
+Path(os.environ['TMPDIR']).mkdir(parents=True,exist_ok=True)
+load_runtime_environment(home)
 from hermes_cli.config import load_config
 from gateway.run_voice import GatewayVoiceMixin
 from gateway.config import Platform
@@ -57,13 +63,25 @@ class Handler(BaseHTTPRequestHandler):
   received.append((self.path,self.headers.get('Authorization'),body))
   self.send_response(200);self.send_header('Content-Type','audio/ogg');self.send_header('Content-Length',str(len(audio)));self.end_headers();self.wfile.write(audio)
 server=HTTPServer(('127.0.0.1',18961),Handler);threading.Thread(target=server.serve_forever,daemon=True).start()
-import os
 os.environ['HERMES_SESSION_PLATFORM']='telegram'
-try:result=json.loads(text_to_speech_tool('Проверка голоса.'))
+try:
+ result=json.loads(text_to_speech_tool('Проверка голоса.'))
+ # The gateway clears session context before automatic voice replies. Exercise
+ # its actual synthesis function, including path safety and the real SDK.
+ os.environ.pop('HERMES_SESSION_PLATFORM',None)
+ adapter.name='Telegram';adapter.prepare_tts_text=lambda text:text
+ auto_paths,requested=asyncio.run(BasePlatformAdapter._synthesize_auto_tts(adapter,'Автоматический ответ.'))
+ assert auto_paths, 'automatic voice reply produced no audio'
+ assert Path(requested).is_relative_to(Path(os.environ['TMPDIR']))
+ for auto_path in auto_paths:
+  assert Path(auto_path).read_bytes()[:4]==b'OggS'
+  Path(auto_path).unlink()
 finally:server.shutdown();server.server_close()
 assert result.get('success'),result
 assert Path(result['file_path']).read_bytes()[:4]==b'OggS'
-assert len(received)==1,received
+assert len(received)==2,received
+assert received[1][:2]==received[0][:2]
+assert received[1][2]['response_format']=='opus', received[1][2]
 path,auth,body=received[0]
 assert path==('/speech/v1/audio/speech' if scenario=='override' else '/v1/audio/speech')
 key={'override':'separate-tts-key','none':'no-key-required'}.get(scenario,'SENTINEL${HOME}')
