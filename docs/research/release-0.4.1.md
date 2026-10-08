@@ -91,12 +91,25 @@ The earlier recipient `VOICE_MESSAGES_FORBIDDEN` restriction no longer blocked
 this delivery.
 
 The desktop client could display the authorized chat, but click actions failed
-with `noWindowsAvailable`, including after rebinding and raising the window.
-Therefore a full incoming Telegram voice → LLM → outgoing voice exchange remains
-**not-run** for this rollout. The user was asked to send or forward a voice in
-that same chat; no manual result is assumed. The native automatic synthesis,
-VoiceOnly dispatch, STT, restart and outbound delivery checks above passed
-independently. No second `getUpdates` consumer was started.
+with `noWindowsAvailable`. The user therefore sent a fresh two-second voice
+message at 16:24 MSK and explicitly confirmed doing so. The complete live flow
+then passed:
+
+- Native Telegram cached that incoming voice at 13:24:37 UTC and STT transcribed
+  it at 13:24:39 UTC using `qwen3-asr-1.7b`; the transcript echo was visible in chat.
+- Read-only native history correlated the incoming platform message with a new
+  user/assistant turn for the permitted Telegram identity. Accounting increased
+  by one `qwen38-27b` API call, 14,522 input tokens and 298 output tokens; no tool
+  call was recorded for this turn.
+- The gateway automatically invoked TTS at 13:25:05 UTC and saved the 47,440-byte
+  output under `/opt/data/.cache/tmp/hermes_voice` at 13:25:30 UTC.
+- A six-second voice reply and its matching text were observed in
+  `@HermesOperatorK8SBot` at 16:25 MSK. No manual speech command, `/voice` override,
+  extra restart or second Bot API consumer was used for this exchange.
+
+This verifies incoming Telegram voice → STT → LLM → automatic TTS → voice delivery
+on the deployed 0.4.1 smoke after its controlled restart. It is a single authorized
+personal-chat test, not multi-account/group acceptance or a latency benchmark.
 
 Private rollback inputs and verification evidence are retained in
 `/tmp/hermes-release-0.4.1/`; they are not release attachments. This release does
