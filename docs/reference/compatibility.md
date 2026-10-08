@@ -5,14 +5,14 @@ acceptance gate remains open; see [acceptance](../research/v1-acceptance.md).
 
 | Environment | Architecture | Verified scope |
 | --- | --- | --- |
-| k3s v1.34.7+k3s1, Flannel + k3s policy enforcement | amd64 | Native Hermes gateway, published operator 0.4.0 via Helm upgrade from 0.3.0; CSI WaitForFirstConsumer/expansion and generated policy. [Current release evidence](../research/release-0.4.0.md), [earlier infrastructure checks](../research/berger-apps-preflight.md). |
+| k3s v1.34.7+k3s1, Flannel + k3s policy enforcement | amd64 | Native Hermes gateway, published operator 0.4.1 via Helm upgrade from 0.4.0; CSI WaitForFirstConsumer/expansion and generated policy. [Current release evidence](../research/release-0.4.1.md), [earlier infrastructure checks](../research/berger-apps-preflight.md). |
 | kind v0.33.0 / Kubernetes v1.36.4 / Calico v3.32.2 | arm64 | Native dual-stack CNI probes; original-image runtime tests. Local Helm acceptance command below; run status in acceptance report. |
 
 No Kubernetes 1.35 or 1.37 runtime support is claimed. The amd64 reference-cluster
-job passed in [main CI](https://github.com/wbe7/hermes-operator/actions/runs/35615967069);
+job passed in [main CI](https://github.com/wbe7/hermes-operator/actions/runs/37779061826);
 that fixture coverage does not replace native Telegram acceptance. Published
-operator/chart 0.4.0 comes from source `c011af8`; record the image digest and
-cluster context when reproducing a check. The live check upgraded 0.3.0 to 0.4.0;
+operator/chart 0.4.1 comes from source `dcd45ec`; record the image digest and
+cluster context when reproducing a check. The live check upgraded 0.4.0 to 0.4.1;
 data-schema migration was not tested.
 
 Pinned original Hermes: `v2026.9.14`, multiarch image digest

@@ -28,18 +28,18 @@ networkPolicy:
 `podSelector` и `resolverIPs` можно использовать вместе, например для Pod DNS и NodeLocal resolver. Оператор разрешает этим destinations только TCP/UDP 53; он не обнаруживает DNS автоматически и не открывает всю private-сеть.
 
 Сохраните выбранные значения в `operator-values.yaml`. Установите одну копию
-cluster-wide оператора на кластер. Релиз `0.4.0` экспериментальный; артефакты
+cluster-wide оператора на кластер. Релиз `0.4.1` экспериментальный; артефакты
 публичны, отдельный registry Secret не требуется.
 
 Скачайте файлы релиза, проверьте их контрольные суммы, затем примените CRD и chart:
 
 ```bash
-gh release download operator-v0.4.0 --repo wbe7/hermes-operator \
-  --dir hermes-operator-0.4.0
-(cd hermes-operator-0.4.0 && sha256sum --check SHA256SUMS)
-kubectl apply --server-side -f hermes-operator-0.4.0/hermes.crd.yaml
+gh release download operator-v0.4.1 --repo wbe7/hermes-operator \
+  --dir hermes-operator-0.4.1
+(cd hermes-operator-0.4.1 && sha256sum --check SHA256SUMS)
+kubectl apply --server-side -f hermes-operator-0.4.1/hermes.crd.yaml
 helm upgrade --install hermes-operator oci://ghcr.io/wbe7/charts/hermes-operator \
-  --version 0.4.0 --namespace hermes-system --create-namespace \
+  --version 0.4.1 --namespace hermes-system --create-namespace \
   --values operator-values.yaml --wait --timeout 5m
 kubectl rollout status deployment/hermes-operator -n hermes-system
 ```
@@ -55,11 +55,11 @@ CRD при `helm upgrade`. Перед каждым upgrade явно примен
 для старого релиза. CRD/CR/PVC не удаляются как способ обновления; совместимость
 схемы и возврата данных проверяется отдельно.
 
-Для закрепления проверенного multiarch image `0.4.0` добавьте в values:
+Для закрепления проверенного multiarch image `0.4.1` добавьте в values:
 
 ```yaml
 image:
-  tag: "0.4.0@sha256:fe4e2a1101bbde458a540768cff323742f2739c70052618a5adee9d85187ba7f"
+  tag: "0.4.1@sha256:a4678eb05379c43b14ad2bdac9d960a8a931ea31484f8eb547d2e3b14b3069bc"
 ```
 
 **При обновлении на другой релиз:**

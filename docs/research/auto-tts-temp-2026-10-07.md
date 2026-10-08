@@ -50,3 +50,12 @@ files. Agent core and image remain unchanged.
 - The live diagnostic used the actual S2 Pro endpoint. All diagnostic wrappers
   ran in separate processes; no instrumentation was installed into the running
   gateway. Private scripts/evidence are in `/tmp/hermes-voice-debug/`.
+
+## Released correction — 2026-10-08
+
+[Operator 0.4.1](release-0.4.1.md) deployed the permanent fix to Berger Apps.
+The smoke-only `spec.extraEnv.TMPDIR` was removed, the obsolete empty diagnostic
+directories were cleaned up, and all 16 active agents passed native safe-temp
+checks. Automatic synthesis and STT passed before and after a controlled smoke
+restart. PVC identities, personal files and existing conversation history were
+preserved. See the release report for the separate Telegram delivery scope.
